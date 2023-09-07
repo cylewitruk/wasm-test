@@ -10,6 +10,9 @@ pub fn generate_wasm() -> Vec<u8> {
     let (add, _) = module.add_import_func("env", "add", add_ty);
 
     // Build the `toplevel` function (all of the below)..
+    // This function accepts two Externref's as parameters (for add, should be of integer type)
+    // but the host function (in main.rs) only handles Value::Int right now.
+    // Returns an Externref which is of the same type as the input types.
     let mut top_level = FunctionBuilder::new(
         &mut module.types,
         &[ValType::Externref, ValType::Externref],
