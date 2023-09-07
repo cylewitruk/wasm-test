@@ -16,9 +16,6 @@ fn main() {
     let module = Module::from_binary(&store.engine(), &wasm_bytes)
         .expect("Failed to load module");
 
-    let param_a = Some(ExternRef::new(Value::Int(1)));
-    let param_b = Some(ExternRef::new(Value::Int(2)));
-
     let func = Func::wrap(store.as_context_mut(), |a: Option<ExternRef>, b: Option<ExternRef>| {
         let a = a.unwrap();
         let b = b.unwrap();
@@ -41,6 +38,9 @@ fn main() {
 
     let instance_fn = instance.get_func(&mut store, "toplevel")
         .expect("Failed to get fn");
+
+    let param_a = Some(ExternRef::new(Value::Int(1)));
+    let param_b = Some(ExternRef::new(Value::Int(2)));
 
     let result_val = Some(ExternRef::new(Value::Int(0)));
     let results = &mut [Val::ExternRef(result_val)];
