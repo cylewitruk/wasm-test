@@ -43,15 +43,15 @@ fn main() {
                     } else {
                         panic!("Value type mismatch");
                     }
-                },
+                }
                 Some(Value::UInt(uint_a)) => {
                     if let Some(Value::UInt(uint_b)) = b.data().downcast_ref::<Value>() {
                         Some(ExternRef::new(Value::UInt(uint_a + uint_b)))
                     } else {
                         panic!("Value type mismatch");
                     }
-                },
-                _ => panic!("Invalid type...")
+                }
+                _ => panic!("Invalid type..."),
             };
 
             Ok(result)
@@ -72,8 +72,10 @@ fn main() {
         .get_func(&mut store, "toplevel")
         .expect("Failed to get fn");
 
-    // .. and our output params... (same thing with `Option`s as above...)
-    let results = &mut [Val::ExternRef(Some(ExternRef::new(Value::none())))];
+    // Define our output parameters. Note that we're using `Option`s as stated above.
+    let results = &mut [
+        Val::ExternRef(Some(ExternRef::new(Value::none()))), // Option<ExternRef>
+    ];
 
     // * * * * * * * * * * * * *
     // Call the function using `Int`s.
@@ -82,8 +84,8 @@ fn main() {
         .call(
             &mut store,
             &[
-                Val::ExternRef(Some(ExternRef::new(Value::Int(1)))),
-                Val::ExternRef(Some(ExternRef::new(Value::Int(2))))
+                Val::ExternRef(Some(ExternRef::new(Value::Int(1)))), // Option<ExternRef>
+                Val::ExternRef(Some(ExternRef::new(Value::Int(2)))), // Option<ExternRef>
             ],
             results,
         )
@@ -92,6 +94,7 @@ fn main() {
     // Results..
     println!("Results: {:?}", results);
     let result_unwrapped = results[0].unwrap_externref().unwrap();
+
     let result = result_unwrapped.data().downcast_ref::<Value>().unwrap();
     println!("Result: {:?}", result);
 
@@ -102,8 +105,8 @@ fn main() {
         .call(
             &mut store,
             &[
-                Val::ExternRef(Some(ExternRef::new(Value::UInt(5)))),
-                Val::ExternRef(Some(ExternRef::new(Value::UInt(6))))
+                Val::ExternRef(Some(ExternRef::new(Value::UInt(5)))), // Option<ExternRef>
+                Val::ExternRef(Some(ExternRef::new(Value::UInt(6)))), // Option<ExternRef>
             ],
             results,
         )
@@ -112,9 +115,9 @@ fn main() {
     // Results..
     println!("Results: {:?}", results);
     let result_unwrapped = results[0].unwrap_externref().unwrap();
+
     let result = result_unwrapped.data().downcast_ref::<Value>().unwrap();
     println!("Result: {:?}", result);
-
 }
 
 #[derive(Debug, Copy, Clone)]
