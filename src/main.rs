@@ -27,6 +27,7 @@ fn main() {
     // This defines a HOST function which receives ExternRef values and adds them together, returning the result.
     // This code only handles sunny-day, i.e. if it isn't two `Value::Int(_)`'s it'll blow up. A proper impl.
     // would use a `match` statement and handle Int/UInt accordingly.
+    // NOTE: !!!  ExternRef input arguments and return values must be provided as `Options`s.
     let func = Func::wrap(
         store.as_context_mut(),
         |a: Option<ExternRef>, b: Option<ExternRef>| {
@@ -39,6 +40,7 @@ fn main() {
             let result = Value::Int(input_a.clone().expect_i128() + input_b.clone().expect_i128());
             println!("Inner result: {:?}", result);
 
+            // As stated above, these must be `Option`s.
             let retopt: Option<ExternRef> = Some(ExternRef::new(result));
             println!("Inner ret: {:?}", retopt);
 
@@ -60,11 +62,11 @@ fn main() {
         .get_func(&mut store, "toplevel")
         .expect("Failed to get fn");
 
-    // Define our input params...
+    // Define our input params... as mentioned above, these must be `Option`s, so we initialize them as `Some`.
     let param_a = Some(ExternRef::new(Value::Int(1)));
     let param_b = Some(ExternRef::new(Value::Int(2)));
 
-    // .. and our output params..
+    // .. and our output params... (same thing with `Option`s as above...)
     let result_val = Some(ExternRef::new(Value::Int(0)));
     let results = &mut [Val::ExternRef(result_val)];
 
