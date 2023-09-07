@@ -22,7 +22,7 @@ fn main() {
     let mut store = Store::new(&engine, state);
 
     // Load the module generated above.
-    let module = Module::from_binary(&store.engine(), &wasm_bytes).expect("Failed to load module");
+    let module = Module::from_binary(store.engine(), &wasm_bytes).expect("Failed to load module");
 
     // This defines a HOST function which receives ExternRef values and adds them together, returning the result.
     // This code only handles sunny-day, i.e. if it isn't two `Value::Int(_)`'s it'll blow up. A proper impl.
