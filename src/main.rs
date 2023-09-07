@@ -24,7 +24,7 @@ fn main() {
     let module = Module::from_binary(&store.engine(), &wasm_bytes)
         .expect("Failed to load module");
 
-    // This defines a function which receives ExternRef values and adds them together, returning the result.
+    // This defines a HOST function which receives ExternRef values and adds them together, returning the result.
     // This code only handles sunny-day, i.e. if it isn't two `Value::Int(_)`'s it'll blow up. A proper impl.
     // would use a `match` statement and handle Int/UInt accordingly.
     let func = Func::wrap(store.as_context_mut(), |a: Option<ExternRef>, b: Option<ExternRef>| {
@@ -43,10 +43,10 @@ fn main() {
         Ok(retopt)
     });
 
-    // Create an `Extern` of the `add` function.
+    // Create an `Extern` of the `add` function (needed to pass as an imported function in the next step).
     let add = Extern::Func(func);
     
-    // We create a new instance and pass in any imported functions (in this case, only `add`).
+    // We create a new instance and pass in any imported (host) functions (in this case, only `add`).
     let instance = Instance::new(&mut store, &module, &[add])
         .expect("Couldn't create new module instance");
 
@@ -56,9 +56,11 @@ fn main() {
     let instance_fn = instance.get_func(&mut store, "toplevel")
         .expect("Failed to get fn");
 
+    // Define our input params...
     let param_a = Some(ExternRef::new(Value::Int(1)));
     let param_b = Some(ExternRef::new(Value::Int(2)));
 
+    // .. and our output params..
     let result_val = Some(ExternRef::new(Value::Int(0)));
     let results = &mut [Val::ExternRef(result_val)];
 
