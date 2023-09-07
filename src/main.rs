@@ -33,18 +33,28 @@ fn main() {
         |a: Option<ExternRef>, b: Option<ExternRef>| {
             let a = a.unwrap();
             let b = b.unwrap();
-            let input_a = a.data().downcast_ref::<Value>().unwrap();
-            let input_b = b.data().downcast_ref::<Value>().unwrap();
-            println!("Input: a={:?}, b={:?}", input_a, input_b);
 
-            let result = Value::Int(input_a.clone().expect_i128() + input_b.clone().expect_i128());
-            println!("Inner result: {:?}", result);
+            println!("Input (a: {:?}, b: {:?})", a, b);
 
-            // As stated above, these must be `Option`s.
-            let retopt: Option<ExternRef> = Some(ExternRef::new(result));
-            println!("Inner ret: {:?}", retopt);
+            let result = match a.data().downcast_ref::<Value>() {
+                Some(Value::Int(int_a)) => {
+                    if let Some(Value::Int(int_b)) = b.data().downcast_ref::<Value>() {
+                        Some(ExternRef::new(Value::Int(int_a + int_b)))
+                    } else {
+                        panic!("Value type mismatch");
+                    }
+                },
+                Some(Value::UInt(uint_a)) => {
+                    if let Some(Value::UInt(uint_b)) = b.data().downcast_ref::<Value>() {
+                        Some(ExternRef::new(Value::UInt(uint_a + uint_b)))
+                    } else {
+                        panic!("Value type mismatch");
+                    }
+                },
+                _ => panic!("Invalid type...")
+            };
 
-            Ok(retopt)
+            Ok(result)
         },
     );
 
@@ -62,19 +72,19 @@ fn main() {
         .get_func(&mut store, "toplevel")
         .expect("Failed to get fn");
 
-    // Define our input params... as mentioned above, these must be `Option`s, so we initialize them as `Some`.
-    let param_a = Some(ExternRef::new(Value::Int(1)));
-    let param_b = Some(ExternRef::new(Value::Int(2)));
-
     // .. and our output params... (same thing with `Option`s as above...)
-    let result_val = Some(ExternRef::new(Value::Int(0)));
-    let results = &mut [Val::ExternRef(result_val)];
+    let results = &mut [Val::ExternRef(Some(ExternRef::new(Value::none())))];
 
-    // Call the function.
+    // * * * * * * * * * * * * *
+    // Call the function using `Int`s.
+    // * * * * * * * * * * * * *
     instance_fn
         .call(
             &mut store,
-            &[Val::ExternRef(param_a), Val::ExternRef(param_b)],
+            &[
+                Val::ExternRef(Some(ExternRef::new(Value::Int(1)))),
+                Val::ExternRef(Some(ExternRef::new(Value::Int(2))))
+            ],
             results,
         )
         .expect("Failed to call function");
@@ -84,6 +94,27 @@ fn main() {
     let result_unwrapped = results[0].unwrap_externref().unwrap();
     let result = result_unwrapped.data().downcast_ref::<Value>().unwrap();
     println!("Result: {:?}", result);
+
+    // * * * * * * * * * * * * *
+    // Call the function using `UInt`s.
+    // * * * * * * * * * * * * *
+    instance_fn
+        .call(
+            &mut store,
+            &[
+                Val::ExternRef(Some(ExternRef::new(Value::UInt(5)))),
+                Val::ExternRef(Some(ExternRef::new(Value::UInt(6))))
+            ],
+            results,
+        )
+        .expect("Failed to call function");
+
+    // Results..
+    println!("Results: {:?}", results);
+    let result_unwrapped = results[0].unwrap_externref().unwrap();
+    let result = result_unwrapped.data().downcast_ref::<Value>().unwrap();
+    println!("Result: {:?}", result);
+
 }
 
 #[derive(Debug, Copy, Clone)]
