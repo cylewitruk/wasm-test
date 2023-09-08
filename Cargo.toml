@@ -1,7 +1,10 @@
 [package]
-name = "wasm-test"
+name = "wasm_test"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+path = "./src/lib.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,3 +12,10 @@ edition = "2021"
 walrus = "0.20.1"
 wasmtime = "12.0.1"
 clarity-vm = { version = "2" }
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "general"
+harness = false

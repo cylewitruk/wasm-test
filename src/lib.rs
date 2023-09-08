@@ -6,11 +6,9 @@ use wasmtime::{
     Store, Val,
 };
 
-mod wasm_generator;
-#[cfg(test)]
-mod tests;
+pub mod wasm_generator;
 
-fn main() {
+pub fn main() {
     // Generate a wasm module (see `wasm_generator.rs`) which has a `toplevel` function
     // which in turn calls the below defined wrapped function `func`.
     let wasm_bytes = wasm_generator::generate_wasm();
@@ -22,12 +20,19 @@ fn main() {
     // Initialize the wasmtime engine.
     let engine = Engine::new(&config).expect("Failed to initialize engine");
 
+    let precompiled = engine.precompile_module(&wasm_bytes)
+        .expect("Failed to precompile module");
+
     // Initialize the wasmtime store (using a custom state type).
     let state = MyApplicationState {};
     let mut store = Store::new(&engine, state);
 
     // Load the module generated above.
-    let module = Module::from_binary(store.engine(), &wasm_bytes).expect("Failed to load module");
+    //let module = Module::from_binary(store.engine(), &wasm_bytes).expect("Failed to load module");
+    let module = unsafe { 
+        Module::deserialize(&engine, &precompiled)
+            .expect("Failed to load module") 
+    };
 
     // Get our list of host functions to be included in the instance.
     let imports = define_functions::<MyApplicationState>(&mut store);
@@ -78,7 +83,8 @@ fn main() {
     println!("Result: {:?}; Time: {:?}", result, duration);
 }
 
-fn define_functions<T>(mut store: impl AsContextMut<Data = T>) -> Vec<Extern> {
+#[inline]
+pub fn define_functions<T>(mut store: impl AsContextMut<Data = T>) -> Vec<Extern> {
     let mut externs = Vec::<Extern>::new();
 
     // NOTE: `ExternRef`s and `FuncRef`s must be passed as `Option`s in Wasmtime to be properly
@@ -157,17 +163,16 @@ fn define_functions<T>(mut store: impl AsContextMut<Data = T>) -> Vec<Extern> {
             debug_assert_eq!(fn_type.params().len(), 2);
             debug_assert_eq!(fn_type.results().len(), 1);
 
+            // Define our output parameters to be used for each iteration of fold.
+            let results = &mut [
+                Val::ExternRef(Some(ExternRef::new(Value::none()))), // Option<ExternRef>
+            ];
+
             let result = match seq.data().downcast_ref::<Value>().unwrap() {
                 Value::Sequence(SequenceData::List(list)) => {
                     let result = list.data.iter().fold(init, |acc, val| {
-                        let acc_value = acc.data().downcast_ref::<Value>();
                         let val_ref = Some(ExternRef::new(val.clone()));
                         //println!("acc: {:?}, acc_value: {:?}, val: {:?}", &acc.data(), &acc_value, &val);
-
-                        // Define our output parameters to be used for each iteration of fold.
-                        let results = &mut [
-                            Val::ExternRef(Some(ExternRef::new(Value::none()))), // Option<ExternRef>
-                        ];
                         
                         func.call(
                             &mut caller, 
@@ -203,4 +208,4 @@ fn define_functions<T>(mut store: impl AsContextMut<Data = T>) -> Vec<Extern> {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct MyApplicationState {}
+pub struct MyApplicationState {}
