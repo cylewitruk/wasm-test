@@ -12,11 +12,24 @@ pub fn generate_wasm() -> Vec<u8> {
     );
     let (add, _) = module.add_import_func("env", "add", add_ty);
 
-    // Build the `toplevel` function (all of the below)..
-    // This function accepts two Externref's as parameters (for add, should be of integer type)
-    // but the host function (in main.rs) only handles Value::Int right now.
-    // Returns an Externref which is of the same type as the input types.
-    let mut top_level = FunctionBuilder::new(
+    // Import the API definition for `mul`.
+    let mul_ty = module.types.add(
+        &[ValType::Externref, ValType::Externref],
+        &[ValType::Externref],
+    );
+    let (mul, _) = module.add_import_func("env", "add", mul_ty);
+
+    // Import the API definition for `fold`.
+    let fold_ty = module.types.add(
+        &[ValType::Funcref, ValType::Externref, ValType::Externref],
+        &[ValType::Externref]
+    );
+    let (fold, _) = module.add_import_func("env", "fold", fold_ty);
+
+    // * * * * * * * * * * * * *
+    // `add-square` function.
+    // * * * * * * * * * * * * *
+    let mut add_square = FunctionBuilder::new(
         &mut module.types,
         &[ValType::Externref, ValType::Externref],
         &[ValType::Externref],
@@ -25,10 +38,38 @@ pub fn generate_wasm() -> Vec<u8> {
     let a = module.locals.add(ValType::Externref);
     let b = module.locals.add(ValType::Externref);
 
-    top_level.func_body().local_get(a).local_get(b).call(add);
+    add_square
+        .func_body()
+        .local_get(a)
+        .local_get(a)
+        .call(mul)
+        .local_get(b)
+        .call(add);
 
-    let top_level_fn = top_level.finish(vec![a, b], &mut module.funcs);
-    module.exports.add("toplevel", top_level_fn);
+    let add_square_fn = add_square.finish(vec![a, b], &mut module.funcs);
+    module.exports.add("add-square", add_square_fn);
+
+    // * * * * * * * * * * * * *
+    // `fold-add-square` function.
+    // * * * * * * * * * * * * *
+    let mut fold_add_square = FunctionBuilder::new(
+        &mut module.types,
+        &[ValType::Externref, ValType::Externref], // list + init
+        &[ValType::Externref],
+    );
+
+    let list = module.locals.add(ValType::Externref);
+    let init = module.locals.add(ValType::Externref);
+
+    fold_add_square
+        .func_body()
+        .ref_func(add_square_fn)
+        .local_get(list)
+        .local_get(init)
+        .call(fold);
+
+    let fold_add_square_fn = fold_add_square.finish(vec![list, init], &mut module.funcs);
+    module.exports.add("fold-add-square", fold_add_square_fn);
 
     // Compile the module.
     let wasm_bytes = module.emit_wasm();
