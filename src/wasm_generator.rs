@@ -1,5 +1,6 @@
 use walrus::{FunctionBuilder, Module, ModuleConfig, ValType};
 
+#[inline]
 pub fn generate_wasm() -> Vec<u8> {
     // Construct a new Walrus module.
     let config = ModuleConfig::new();
@@ -17,7 +18,7 @@ pub fn generate_wasm() -> Vec<u8> {
         &[ValType::Externref, ValType::Externref],
         &[ValType::Externref],
     );
-    let (mul, _) = module.add_import_func("env", "add", mul_ty);
+    let (mul, _) = module.add_import_func("env", "mul", mul_ty);
 
     // Import the API definition for `fold`.
     let fold_ty = module.types.add(
