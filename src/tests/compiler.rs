@@ -36,5 +36,5 @@ fn test_compile() {
     )
     .unwrap();
 
-    let compile_result = compile(&analyze_result.contract_analysis).unwrap();
+    let _compile_result = compile(&analyze_result.contract_analysis).unwrap();
 }
