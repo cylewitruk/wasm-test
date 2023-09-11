@@ -1,4 +1,8 @@
+use clarity::vm::{analysis::ContractAnalysis, diagnostic::DiagnosableError};
 use walrus::{FunctionBuilder, Module, ModuleConfig, ValType};
+
+
+
 
 #[inline]
 pub fn generate_wasm() -> Vec<u8> {
@@ -11,21 +15,21 @@ pub fn generate_wasm() -> Vec<u8> {
         &[ValType::Externref, ValType::Externref],
         &[ValType::Externref],
     );
-    let (add, _) = module.add_import_func("env", "add", add_ty);
+    let (add, _) = module.add_import_func("clarity", "add", add_ty);
 
     // Import the API definition for `mul`.
     let mul_ty = module.types.add(
         &[ValType::Externref, ValType::Externref],
         &[ValType::Externref],
     );
-    let (mul, _) = module.add_import_func("env", "mul", mul_ty);
+    let (mul, _) = module.add_import_func("clarity", "mul", mul_ty);
 
     // Import the API definition for `fold`.
     let fold_ty = module.types.add(
         &[ValType::Funcref, ValType::Externref, ValType::Externref],
         &[ValType::Externref]
     );
-    let (fold, _) = module.add_import_func("env", "fold", fold_ty);
+    let (fold, _) = module.add_import_func("clarity", "fold", fold_ty);
 
     // * * * * * * * * * * * * *
     // `add-square` function.
@@ -80,3 +84,4 @@ pub fn generate_wasm() -> Vec<u8> {
 
     wasm_bytes
 }
+

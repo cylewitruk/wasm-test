@@ -1,7 +1,7 @@
 use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
-use wasmtime::{Module, Engine, Config, Store, Instance, Val, ExternRef};
-use wasm_test::{MyApplicationState, wasm_generator, define_functions};
+use wasmtime::{Module, Engine, Config, Store, Instance, Val, ExternRef, Extern};
+use wasm_test::{ClarityWasmContext, wasm_generator, get_all_functions};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     // Generate a wasm module (see `wasm_generator.rs`) which has a `toplevel` function
@@ -15,11 +15,12 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // Initialize the wasmtime engine.
     let engine = Engine::new(&config).expect("Failed to initialize engine");
 
+    // Pre-compile the module.
     let precompiled = engine.precompile_module(&wasm_bytes)
         .expect("Failed to precompile module");
 
     // Initialize the wasmtime store (using a custom state type).
-    let state = MyApplicationState {};
+    let state = ClarityWasmContext {};
     let mut store = Store::new(&engine, state);
 
     // Load the module generated above.
@@ -30,7 +31,11 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     };
 
     // Get our list of host functions to be included in the instance.
-    let imports = define_functions::<MyApplicationState>(&mut store);
+    let imports = get_all_functions(&mut store);
+    // Convert the (name, func) pairs to a vec of `Export`s (needed for the Instance).
+    let imports = imports.into_iter()
+        .map(|f| Extern::Func(f.func))
+        .collect::<Vec<Extern>>();
 
     // We create a new instance and pass in any imported (host) functions.
     let instance =
