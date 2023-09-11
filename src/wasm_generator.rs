@@ -1,9 +1,6 @@
 use clarity::vm::{analysis::ContractAnalysis, diagnostic::DiagnosableError};
 use walrus::{FunctionBuilder, Module, ModuleConfig, ValType};
 
-
-
-
 #[inline]
 pub fn generate_wasm() -> Vec<u8> {
     // Construct a new Walrus module.
@@ -27,7 +24,7 @@ pub fn generate_wasm() -> Vec<u8> {
     // Import the API definition for `fold`.
     let fold_ty = module.types.add(
         &[ValType::Funcref, ValType::Externref, ValType::Externref],
-        &[ValType::Externref]
+        &[ValType::Externref],
     );
     let (fold, _) = module.add_import_func("clarity", "fold", fold_ty);
 
@@ -84,4 +81,3 @@ pub fn generate_wasm() -> Vec<u8> {
 
     wasm_bytes
 }
-

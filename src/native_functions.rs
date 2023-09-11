@@ -3,24 +3,25 @@
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
-use clarity::vm::{types::{SequenceData, CharType}, Value};
-use wasmtime::{
-    AsContext, AsContextMut, Caller, ExternRef, Func, Val,
-};
 use crate::ClarityWasmContext;
+use clarity::vm::{
+    types::{CharType, SequenceData},
+    Value,
+};
+use wasmtime::{AsContext, AsContextMut, Caller, ExternRef, Func, Val};
 
 /// Holds a native function name and function implementation.
 #[derive(Debug)]
 pub struct FuncMap {
     pub name: String,
-    pub func: Func
+    pub func: Func,
 }
 
 impl FuncMap {
     pub fn new(name: &str, func: Func) -> Self {
         FuncMap {
             name: name.to_string(),
-            func
+            func,
         }
     }
 }
@@ -38,7 +39,10 @@ pub fn define_add(mut store: impl AsContextMut) -> Func {
                     let result = int_a.checked_add(*int_b).expect("Failed to add");
                     Some(ExternRef::new(Value::Int(result)))
                 } else {
-                    panic!("[add] Value type mismatch (int): b = {:?}", b.data().downcast_ref::<Value>());
+                    panic!(
+                        "[add] Value type mismatch (int): b = {:?}",
+                        b.data().downcast_ref::<Value>()
+                    );
                 }
             }
             Some(Value::UInt(uint_a)) => {
@@ -68,7 +72,10 @@ pub fn define_mul(mut store: impl AsContextMut) -> Func {
                     let result = int_a.checked_mul(*int_b).expect("Failed to multiply");
                     Some(ExternRef::new(Value::Int(result)))
                 } else {
-                    panic!("[mul] Value type mismatch (int): b = {:?}", b.data().downcast_ref::<Value>());
+                    panic!(
+                        "[mul] Value type mismatch (int): b = {:?}",
+                        b.data().downcast_ref::<Value>()
+                    );
                 }
             }
             Some(Value::UInt(uint_a)) => {
@@ -118,10 +125,11 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
                         let val_ref = Some(ExternRef::new(val.clone()));
                         // Call the provided function to fold over.
                         func.call(
-                            &mut caller, 
-                            &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))], 
-                            results
-                        ).expect("Failed to call fold inner function");
+                            &mut caller,
+                            &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))],
+                            results,
+                        )
+                        .expect("Failed to call fold inner function");
 
                         // TODO: Verify that the returned value is of the same type as `init`.
                         results[0].unwrap_externref().unwrap()
@@ -132,10 +140,11 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
                     let result = buff.data.iter().fold(init, |acc, val| {
                         let val_ref = Some(ExternRef::new(val.clone()));
                         func.call(
-                            &mut caller, 
-                            &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))], 
-                            results
-                        ).expect("Failed to call fold inner function");
+                            &mut caller,
+                            &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))],
+                            results,
+                        )
+                        .expect("Failed to call fold inner function");
 
                         // TODO: Verify that the returned value is of the same type as `init`.
                         results[0].unwrap_externref().unwrap()
@@ -144,15 +153,16 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
                 }
                 Value::Sequence(SequenceData::String(char_type)) => {
                     match char_type {
-                        CharType::ASCII(str) =>  {
+                        CharType::ASCII(str) => {
                             let result = str.data.iter().fold(init, |acc, val| {
                                 let val_ref = Some(ExternRef::new(val.clone()));
                                 func.call(
-                                    &mut caller, 
-                                    &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))], 
-                                    results
-                                ).expect("Failed to call fold inner function");
-        
+                                    &mut caller,
+                                    &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))],
+                                    results,
+                                )
+                                .expect("Failed to call fold inner function");
+
                                 // TODO: Verify that the returned value is of the same type as `init`.
                                 results[0].unwrap_externref().unwrap()
                             });
@@ -163,11 +173,12 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
                             let result = str.data.iter().fold(init, |acc, val| {
                                 let val_ref = Some(ExternRef::new(val.clone()));
                                 func.call(
-                                    &mut caller, 
-                                    &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))], 
-                                    results
-                                ).expect("Failed to call fold inner function");
-        
+                                    &mut caller,
+                                    &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))],
+                                    results,
+                                )
+                                .expect("Failed to call fold inner function");
+
                                 // TODO: Verify that the returned value is of the same type as `init`.
                                 results[0].unwrap_externref().unwrap()
                             });

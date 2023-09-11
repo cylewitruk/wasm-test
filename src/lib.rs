@@ -1,6 +1,7 @@
 // Public modules
-pub mod wasm_generator;
 pub mod compiler;
+pub mod runtime;
+pub mod wasm_generator;
 
 // Private modules
 mod native_functions;
@@ -13,5 +14,4 @@ pub use native_functions::get_all_functions;
 mod tests;
 
 #[derive(Debug, Copy, Clone)]
-pub struct ClarityWasmContext {
-}
+pub struct ClarityWasmContext {}

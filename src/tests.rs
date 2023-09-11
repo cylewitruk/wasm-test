@@ -1,3 +1,3 @@
-mod native_functions;
-mod datastore;
 mod compiler;
+mod datastore;
+mod native_functions;

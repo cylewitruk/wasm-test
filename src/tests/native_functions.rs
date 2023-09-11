@@ -1,7 +1,7 @@
 use crate::ClarityWasmContext;
 use clarity::vm::Value;
 use test_case::test_case;
-use wasmtime::{Store, Engine, Config, Val, ExternRef};
+use wasmtime::{Config, Engine, ExternRef, Store, Val};
 
 #[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]
@@ -10,10 +10,11 @@ fn test(a: Value, b: Value) -> Value {
     let add_fn = crate::native_functions::define_add(&mut store);
     let params = &[
         Val::ExternRef(Some(ExternRef::new(a))),
-        Val::ExternRef(Some(ExternRef::new(b)))
+        Val::ExternRef(Some(ExternRef::new(b))),
     ];
     let mut results = [Val::ExternRef(Some(ExternRef::new(Value::none())))];
-    add_fn.call(store, params, &mut results)
+    add_fn
+        .call(store, params, &mut results)
         .expect("Failed to call function");
 
     results[0]
@@ -29,8 +30,7 @@ fn test(a: Value, b: Value) -> Value {
 fn get_new_store() -> Store<ClarityWasmContext> {
     let mut config = Config::default();
     config.wasm_reference_types(true);
-    let engine = Engine::new(&config)
-        .expect("Failed to initialize Wasmtime Engine.");
+    let engine = Engine::new(&config).expect("Failed to initialize Wasmtime Engine.");
     let context = ClarityWasmContext {};
     Store::new(&engine, context)
 }

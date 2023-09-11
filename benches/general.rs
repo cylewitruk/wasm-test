@@ -1,7 +1,7 @@
 use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
-use wasmtime::{Module, Engine, Config, Store, Instance, Val, ExternRef, Extern};
-use wasm_test::{ClarityWasmContext, wasm_generator, get_all_functions};
+use wasm_test::{get_all_functions, wasm_generator, ClarityWasmContext};
+use wasmtime::{Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     // Generate a wasm module (see `wasm_generator.rs`) which has a `toplevel` function
@@ -16,7 +16,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let engine = Engine::new(&config).expect("Failed to initialize engine");
 
     // Pre-compile the module.
-    let precompiled = engine.precompile_module(&wasm_bytes)
+    let precompiled = engine
+        .precompile_module(&wasm_bytes)
         .expect("Failed to precompile module");
 
     // Initialize the wasmtime store (using a custom state type).
@@ -25,15 +26,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     // Load the module generated above.
     //let module = Module::from_binary(store.engine(), &wasm_bytes).expect("Failed to load module");
-    let module = unsafe { 
-        Module::deserialize(&engine, &precompiled)
-            .expect("Failed to load module") 
-    };
+    let module =
+        unsafe { Module::deserialize(&engine, &precompiled).expect("Failed to load module") };
 
     // Get our list of host functions to be included in the instance.
     let imports = get_all_functions(&mut store);
     // Convert the (name, func) pairs to a vec of `Export`s (needed for the Instance).
-    let imports = imports.into_iter()
+    let imports = imports
+        .into_iter()
         .map(|f| Extern::Func(f.func))
         .collect::<Vec<Extern>>();
 
@@ -51,33 +51,30 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let results = &mut [
         Val::ExternRef(Some(ExternRef::new(Value::none()))), // Option<ExternRef>
     ];
-    
-    c.bench_function(
-        "fold-add-square", 
-        |b| {
-            b.iter(|| {
-                // Define our input parameters.
-                let mut sequence_values = Vec::<Value>::with_capacity(8192);
-                for i in 1..8193 {
-                    sequence_values.push(Value::Int(i));
-                }
-                
-                let sequence = Value::list_from(sequence_values)
-                    .expect("Failed to create list");
-                let init = Value::Int(1);
 
-                instance_fn
-                    .call(
-                        &mut store,
-                        &[
-                            Val::ExternRef(Some(ExternRef::new(sequence))), // Option<ExternRef>
-                            Val::ExternRef(Some(ExternRef::new(init))), // Option<ExternRef>
-                        ],
-                        results,
-                    )
-                    .expect("Failed to call function")
-            })
-        });
+    c.bench_function("fold-add-square", |b| {
+        b.iter(|| {
+            // Define our input parameters.
+            let mut sequence_values = Vec::<Value>::with_capacity(8192);
+            for i in 1..8193 {
+                sequence_values.push(Value::Int(i));
+            }
+
+            let sequence = Value::list_from(sequence_values).expect("Failed to create list");
+            let init = Value::Int(1);
+
+            instance_fn
+                .call(
+                    &mut store,
+                    &[
+                        Val::ExternRef(Some(ExternRef::new(sequence))), // Option<ExternRef>
+                        Val::ExternRef(Some(ExternRef::new(init))),     // Option<ExternRef>
+                    ],
+                    results,
+                )
+                .expect("Failed to call function")
+        })
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
