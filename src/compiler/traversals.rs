@@ -1,6 +1,6 @@
 use clarity::vm::{
     functions::{define::DefineFunctions, NativeFunctions},
-    ClarityName, ClarityVersion, SymbolicExpression, SymbolicExpressionType,
+    ClarityVersion, SymbolicExpression, SymbolicExpressionType,
 };
 use walrus::ValType;
 
@@ -27,7 +27,7 @@ impl WasmGenerator {
             }
             SymbolicExpressionType::LiteralValue(value) => {
                 println!("==> traverse_expr(LiteralValue): {}", value);
-                todo!()
+                self.visit_literal_value(expr, value)?;
             }
             SymbolicExpressionType::TraitReference(clarity_name, trait_def) => {
                 println!(

@@ -59,7 +59,22 @@ pub fn define_add(mut store: impl AsContextMut) -> Func {
     })
 }
 
-/// Defines the `mul`(multiply) function.
+#[inline]
+pub fn define_add_native_int128(mut store: impl AsContextMut) -> Func {
+    Func::wrap(&mut store, |a_low: i64, a_high: i64, b_low: i64, b_high: i64| {
+        let a = ((a_high as u64) as u128) << 64 | ((a_low as u64) as u128);
+        let b = ((b_high as u64) as u128) << 64 | ((b_low as u64) as u128);
+
+        let result: i128 = a.checked_add(b).unwrap().try_into().unwrap();
+
+        (
+            (result & 0xFFFFFFFFFFFFFFFF) as i64,
+            ((result >> 64) & 0xFFFFFFFFFFFFFFFF) as i64
+        )
+    })
+}
+
+/// Defines the `mul` (multiply) function.
 #[inline]
 pub fn define_mul(mut store: impl AsContextMut) -> Func {
     Func::wrap(&mut store, |a: Option<ExternRef>, b: Option<ExternRef>| {
@@ -202,6 +217,7 @@ pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>
     // type converted by the runtime.
 
     funcs.push(FuncMap::new("add", define_add(&mut store)));
+    funcs.push(FuncMap::new("native_add_i128", define_add_native_int128(&mut store)));
     funcs.push(FuncMap::new("mul", define_mul(&mut store)));
     funcs.push(FuncMap::new("fold", define_fold(&mut store)));
 

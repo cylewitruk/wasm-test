@@ -8,10 +8,10 @@ use clarity::{
         database::ClarityBackingStore,
         diagnostic::{DiagnosableError, Diagnostic},
         types::QualifiedContractIdentifier,
-        ClarityVersion,
+        ClarityVersion, Value,
     },
 };
-use walrus::{ir::InstrSeqId, FunctionBuilder, GlobalId, ImportId, LocalId, ValType};
+use walrus::{ir::InstrSeqId, FunctionBuilder, GlobalId, ImportId, LocalId, ValType, TableId};
 
 // Sub-module definitions
 mod traversals;
@@ -97,6 +97,40 @@ impl ParameterDefinition {
 pub struct GlobalImportReference {
     pub global_id: GlobalId,
     pub import_id: ImportId,
+}
+
+#[derive(Debug)]
+pub struct TableImportReference {
+    pub table_id: TableId,
+    pub import_id: ImportId,
+    pub constants: Vec<VariableReference>
+}
+
+impl TableImportReference {
+    pub fn new(table_id: TableId, import_id: ImportId) -> Self {
+        TableImportReference { 
+            table_id, 
+            import_id, 
+            constants: Vec::<VariableReference>::new()
+        }
+    }
+
+    pub fn add_const(&mut self, name: &str, value: &Value) -> usize {
+        let index = self.constants.len();
+        self.constants.push(VariableReference { 
+            name: name.to_string(), 
+            index, 
+            value: value.clone() 
+        });
+        index
+    }
+}
+
+#[derive(Debug)]
+pub struct VariableReference {
+    pub name: String,
+    pub index: usize,
+    pub value: Value
 }
 
 /// Perform a contract analysis on the provided Clarity contract source code.

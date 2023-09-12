@@ -5,7 +5,7 @@ use wasmtime::{Config, Engine, ExternRef, Store, Val};
 
 #[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]
-fn test(a: Value, b: Value) -> Value {
+fn test_add(a: Value, b: Value) -> Value {
     let mut store = get_new_store();
     let add_fn = crate::native_functions::define_add(&mut store);
     let params = &[
@@ -26,7 +26,8 @@ fn test(a: Value, b: Value) -> Value {
         .to_owned()
 }
 
-/// Initializes a clean new `Store` using defaults, but with WASM reference types enabled.
+/// Helper function. Initializes a clean new `Store` using defaults, but 
+/// with WASM reference types enabled.
 fn get_new_store() -> Store<ClarityWasmContext> {
     let mut config = Config::default();
     config.wasm_reference_types(true);

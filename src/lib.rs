@@ -1,7 +1,6 @@
 // Public modules
 pub mod compiler;
 pub mod runtime;
-pub mod wasm_generator;
 
 // Private modules
 mod native_functions;
