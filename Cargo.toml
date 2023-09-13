@@ -13,6 +13,9 @@ walrus = "0.20.1"
 wasmtime = "12.0.1"
 clarity-vm = { version = "2" }
 lazy_static = "1.4.0"
+wasmer =  { version = "4.2.0", features = ["wasmer-compiler-llvm"] }
+wasmer-compiler-llvm = "4.2.0"
+mimalloc = { version = "*", default-features = false }
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -22,5 +25,9 @@ sha2 = "0.10.7"
 chrono = "0.4.30"
 
 [[bench]]
-name = "general"
+name = "wasmtime"
+harness = false
+
+[[bench]]
+name = "wasmer"
 harness = false

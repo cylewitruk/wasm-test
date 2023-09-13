@@ -1,5 +1,5 @@
 use clarity::vm::{ClarityName, SymbolicExpression, Value};
-use walrus::{ValType, ElementKind, InitExpr};
+use walrus::{ElementKind, InitExpr, ValType};
 use wasmtime::ExternRef;
 
 use super::{wasm_generator::WasmGenerator, WasmGenerationResult};
@@ -17,7 +17,7 @@ impl WasmGenerator {
     pub(crate) fn visit_literal_value(
         &mut self,
         expr: &SymbolicExpression,
-        value: &Value
+        value: &Value,
     ) -> WasmGenerationResult {
         println!("===> visit_literal_value({}): {}", value, expr);
 
@@ -30,7 +30,6 @@ impl WasmGenerator {
             ValType::Externref,
             Vec::<_>::new()
         );*/
-        
 
         todo!()
     }

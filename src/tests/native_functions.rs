@@ -26,7 +26,7 @@ fn test_add(a: Value, b: Value) -> Value {
         .to_owned()
 }
 
-/// Helper function. Initializes a clean new `Store` using defaults, but 
+/// Helper function. Initializes a clean new `Store` using defaults, but
 /// with WASM reference types enabled.
 fn get_new_store() -> Store<ClarityWasmContext> {
     let mut config = Config::default();

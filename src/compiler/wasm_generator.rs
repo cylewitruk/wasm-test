@@ -2,7 +2,8 @@ use clarity::vm::analysis::ContractAnalysis;
 use walrus::{FunctionBuilder, InstrSeqBuilder, LocalId, Module, ModuleConfig, ValType};
 
 use super::{
-    GlobalImportReference, ParameterDefinition, WasmFunctionContext, WasmGenerationResult, TableImportReference,
+    GlobalImportReference, ParameterDefinition, TableImportReference, WasmFunctionContext,
+    WasmGenerationResult,
 };
 
 #[derive(Debug)]
@@ -20,20 +21,12 @@ impl WasmGenerator {
         let mut module = Module::with_config(config);
 
         // Add a global for the cost tracker, stored in a global called `__cost_tracker_ref`.
-        let (cost_tracker_global_id, cost_tracker_import_id) = module.add_import_global(
-            "clarity", 
-            "__cost_tracker_ref", 
-            ValType::Externref, 
-            false
-        );
+        let (cost_tracker_global_id, cost_tracker_import_id) =
+            module.add_import_global("clarity", "__cost_tracker_ref", ValType::Externref, false);
 
         // Create a table for constants, stored in a table called `__consts`.
-        let (const_table_id, const_table_import_id) = module.add_import_table(
-            "clarity", 
-            "__consts", 
-            0, 
-            None, 
-            ValType::Externref);
+        let (const_table_id, const_table_import_id) =
+            module.add_import_table("clarity", "__consts", 0, None, ValType::Externref);
 
         WasmGenerator {
             module,
@@ -42,11 +35,11 @@ impl WasmGenerator {
                 global_id: cost_tracker_global_id,
                 import_id: cost_tracker_import_id,
             },
-            const_table: TableImportReference::new(const_table_id, const_table_import_id)
+            const_table: TableImportReference::new(const_table_id, const_table_import_id),
         }
     }
 
-    /// Generate the 
+    /// Generate the
     pub fn generate(&mut self, contract_analysis: ContractAnalysis) -> WasmGenerationResult {
         // Traverse and visit all of the expressions from the provided `ContractAnalysis`.
         for expr in contract_analysis.expressions.iter() {

@@ -1,6 +1,5 @@
 use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
-use walrus::{ValType, ModuleConfig, FunctionBuilder};
 use wasm_test::{get_all_functions, ClarityWasmContext};
 use wasmtime::{Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
@@ -91,7 +90,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                     &mut store,
                     &[
                         Val::ExternRef(Some(ExternRef::new(Value::Int(1024)))),
-                        Val::ExternRef(Some(ExternRef::new(Value::Int(2048))))
+                        Val::ExternRef(Some(ExternRef::new(Value::Int(2048)))),
                     ],
                     results,
                 )
@@ -109,20 +108,13 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             .expect("Failed to get fn");
 
         // Define our output parameters. Note that we're using `Option`s as stated above.
-        let results = &mut [
-            Val::I64(0), Val::I64(0)
-        ];
+        let results = &mut [Val::I64(0), Val::I64(0)];
 
         b.iter(|| {
             instance_fn
                 .call(
                     &mut store,
-                    &[
-                        Val::I64(1),
-                        Val::I64(0),
-                        Val::I64(2),
-                        Val::I64(0)
-                    ],
+                    &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
                     results,
                 )
                 .expect("Failed to call function")
@@ -138,9 +130,11 @@ criterion_main!(benches);
 
 #[inline]
 pub fn generate_wasm() -> Vec<u8> {
+    use walrus::{FunctionBuilder, Module, ModuleConfig, ValType};
+
     // Construct a new Walrus module.
     let config = ModuleConfig::new();
-    let mut module = walrus::Module::with_config(config);
+    let mut module = Module::with_config(config);
 
     // Import the API definition for `add`.
     let add_ty = module.types.add(
@@ -152,9 +146,10 @@ pub fn generate_wasm() -> Vec<u8> {
     // Import the API definition for `native_add_i128`.
     let native_add_i128_ty = module.types.add(
         &[ValType::I64, ValType::I64, ValType::I64, ValType::I64],
-        &[ValType::I64, ValType::I64]
+        &[ValType::I64, ValType::I64],
     );
-    let (native_add_i128_id, _) = module.add_import_func("clarity", "native_add_i128", native_add_i128_ty);
+    let (native_add_i128_id, _) =
+        module.add_import_func("clarity", "native_add_i128", native_add_i128_ty);
 
     // Import the API definition for `mul`.
     let mul_ty = module.types.add(
@@ -169,7 +164,6 @@ pub fn generate_wasm() -> Vec<u8> {
         &[ValType::Externref],
     );
     let (fold_id, _) = module.add_import_func("clarity", "fold", fold_ty);
-
 
     // ================================================================================
     // `add-square` function.
@@ -195,7 +189,6 @@ pub fn generate_wasm() -> Vec<u8> {
     module.exports.add("add-square", add_square_fn);
     // ////////////////////////////////////////////////////////////////////////////////
 
-
     // ================================================================================
     // `fold-add-square` function.
     // ================================================================================
@@ -219,7 +212,6 @@ pub fn generate_wasm() -> Vec<u8> {
     module.exports.add("fold-add-square", fold_add_square_fn);
     // ////////////////////////////////////////////////////////////////////////////////
 
-
     // ================================================================================
     // `add` function.
     // ================================================================================
@@ -232,18 +224,14 @@ pub fn generate_wasm() -> Vec<u8> {
     let a = module.locals.add(ValType::Externref);
     let b = module.locals.add(ValType::Externref);
 
-    add
-        .func_body()
-        .local_get(a)
-        .local_get(b)
-        .call(add_id);
+    add.func_body().local_get(a).local_get(b).call(add_id);
 
     let add_fn = add.finish(vec![a, b], &mut module.funcs);
     module.exports.add("add", add_fn);
     // ////////////////////////////////////////////////////////////////////////////////
 
     // ================================================================================
-    // `add` function.
+    // `add_native_i128` function.
     // ================================================================================
     let mut native_add_i128 = FunctionBuilder::new(
         &mut module.types,
@@ -264,10 +252,10 @@ pub fn generate_wasm() -> Vec<u8> {
         .local_get(b_high)
         .call(native_add_i128_id);
 
-    let native_add_i128_fn = native_add_i128.finish(vec![a_low, a_high, b_low, b_high], &mut module.funcs);
+    let native_add_i128_fn =
+        native_add_i128.finish(vec![a_low, a_high, b_low, b_high], &mut module.funcs);
     module.exports.add("native_add_i128", native_add_i128_fn);
     // ////////////////////////////////////////////////////////////////////////////////
-
 
     // Compile the module.
     let wasm_bytes = module.emit_wasm();
