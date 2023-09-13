@@ -12,9 +12,12 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let mut config = Config::new();
     config.wasm_reference_types(true);
 
-    // Initialize the wasmtime engine.
-    let engine = Engine::new(&config).expect("Failed to initialize engine");
+    Engine::tls_eager_initialize();
 
+    // Initialize the wasmtime engine.
+    let engine = Engine::new(&config)
+        .expect("Failed to initialize engine");
+    
     // Pre-compile the module.
     let precompiled = engine
         .precompile_module(&wasm_bytes)
@@ -130,7 +133,7 @@ criterion_main!(benches);
 
 #[inline]
 pub fn generate_wasm() -> Vec<u8> {
-    use walrus::{FunctionBuilder, Module, ModuleConfig, ValType};
+    use walrus::{FunctionBuilder, Module, ModuleConfig, ValType, Export, ExportItem};
 
     // Construct a new Walrus module.
     let config = ModuleConfig::new();
@@ -256,6 +259,9 @@ pub fn generate_wasm() -> Vec<u8> {
         native_add_i128.finish(vec![a_low, a_high, b_low, b_high], &mut module.funcs);
     module.exports.add("native_add_i128", native_add_i128_fn);
     // ////////////////////////////////////////////////////////////////////////////////
+
+    let memory_id = module.memories.add_local(true, 1024, None);
+    module.exports.add("vm_mem", ExportItem::Memory(memory_id));
 
     // Compile the module.
     let wasm_bytes = module.emit_wasm();

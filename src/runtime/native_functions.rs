@@ -3,6 +3,8 @@
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
+use std::io::Read;
+
 use crate::ClarityWasmContext;
 use clarity::vm::{
     types::{CharType, SequenceData},
@@ -73,6 +75,38 @@ pub fn define_add_native_int128(mut store: impl AsContextMut) -> Func {
                 (result & 0xFFFFFFFFFFFFFFFF) as i64,
                 ((result >> 64) & 0xFFFFFFFFFFFFFFFF) as i64,
             )
+        },
+    )
+}
+
+#[inline]
+pub fn define_add_native_int128_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+    Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, ClarityWasmContext>,
+        a_ptr: i32,
+        b_ptr: i32| -> i32 {
+            let memory = caller
+                .get_export("vm_mem")
+                .unwrap()
+                .into_memory()
+                .unwrap();
+
+            let mut a_buffer: [u8; 16] = [0; 16];
+            let mut b_buffer: [u8; 16] = [0; 16];
+            memory.read(&caller.as_context(), a_ptr as usize, &mut a_buffer)
+                .expect("Failed to read memory for a_ptr.");
+            memory.read(caller.as_context(), b_ptr as usize, &mut b_buffer)
+                .expect("Failed to read memory for b_ptr.");
+
+            let a = i128::from_le_bytes(a_buffer);
+            let b = i128::from_le_bytes(b_buffer);
+
+            let result = a.checked_add(b).expect("Failed to add two i128's");
+            let result = result.to_le_bytes();
+            memory.write(caller.as_context_mut(), 0, &result)
+                .expect("Couldn't write result to memory");
+            0
         },
     )
 }

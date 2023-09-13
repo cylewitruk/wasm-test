@@ -7,11 +7,8 @@ static GLOBAL: MiMalloc = MiMalloc;
 pub mod compiler;
 pub mod runtime;
 
-// Private modules
-mod native_functions;
-
 // Public exports
-pub use native_functions::get_all_functions;
+pub use runtime::get_all_functions;
 
 // Test-related
 #[cfg(test)]
