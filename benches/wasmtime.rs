@@ -11,6 +11,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // Initialize config which allows for reference types.
     let mut config = Config::new();
     config.wasm_reference_types(true);
+    config.wasm_threads(true);
 
     Engine::tls_eager_initialize();
 
@@ -126,6 +127,33 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         assert_eq!(results[0].i64(), Some(3));
         assert_eq!(results[1].i64(), Some(0));
     });
+
+    c.bench_function("memory_add_i128", |b| {
+        let instance_fn = instance
+            .get_func(&mut store, "memory_add_i128")
+            .expect("Failed to get fn");
+
+        // Define our output parameters. Note that we're using `Option`s as stated above.
+        let results = &mut [Val::I32(0)];
+
+        let mem = instance.get_memory(&mut store, "vm_mem")
+                .expect("Failed to find 'vm_mem'.");
+
+        mem.write(&mut store, 0, &[0; 32])
+            .expect("Couldn't write memory");
+
+        b.iter(|| {
+            instance_fn
+                .call(
+                    &mut store,
+                    &[Val::I32(0)],
+                    results,
+                )
+                .expect("Failed to call function")
+        });
+
+        assert_eq!(results[0].i32(), Some(32));
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
@@ -153,6 +181,14 @@ pub fn generate_wasm() -> Vec<u8> {
     );
     let (native_add_i128_id, _) =
         module.add_import_func("clarity", "native_add_i128", native_add_i128_ty);
+
+    // Import the API definition for `memory_add_i128`.
+    let memory_add_i128_ty = module.types.add(
+        &[ValType::I32],
+        &[ValType::I32],
+    );
+    let (memory_add_i128_id, _) =
+        module.add_import_func("clarity", "memory_add_i128", memory_add_i128_ty);
 
     // Import the API definition for `mul`.
     let mul_ty = module.types.add(
@@ -260,7 +296,28 @@ pub fn generate_wasm() -> Vec<u8> {
     module.exports.add("native_add_i128", native_add_i128_fn);
     // ////////////////////////////////////////////////////////////////////////////////
 
-    let memory_id = module.memories.add_local(true, 1024, None);
+    // ================================================================================
+    // `memory_add_i128` function.
+    // ================================================================================
+    let mut memory_add_i128 = FunctionBuilder::new(
+        &mut module.types,
+        &[ValType::I32], // list + init
+        &[ValType::I32],
+    );
+
+    let ptr = module.locals.add(ValType::I32);
+
+    memory_add_i128
+        .func_body()
+        .local_get(ptr)
+        .call(memory_add_i128_id);
+
+    let memory_add_i128_fn =
+        memory_add_i128.finish(vec![ptr], &mut module.funcs);
+    module.exports.add("memory_add_i128", memory_add_i128_fn);
+    // ////////////////////////////////////////////////////////////////////////////////
+
+    let memory_id = module.memories.add_local(false, 1024, None);
     module.exports.add("vm_mem", ExportItem::Memory(memory_id));
 
     // Compile the module.

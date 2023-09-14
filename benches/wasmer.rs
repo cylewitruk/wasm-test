@@ -22,7 +22,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     features.threads = true;
 
     // Use LLVM compiler with default settings.
-    let compiler = LLVM::new();
+    let mut compiler = LLVM::new();
+    compiler.opt_level(wasmer_compiler_llvm::LLVMOptLevel::Aggressive);
 
     // Create the store.
     let mut store = Store::new(compiler);

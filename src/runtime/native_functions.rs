@@ -84,29 +84,28 @@ pub fn define_add_native_int128_memory(mut store: impl AsContextMut<Data = Clari
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,
-        a_ptr: i32,
-        b_ptr: i32| -> i32 {
+        ptr: i32| -> i32 {
             let memory = caller
                 .get_export("vm_mem")
                 .unwrap()
                 .into_memory()
                 .unwrap();
 
-            let mut a_buffer: [u8; 16] = [0; 16];
-            let mut b_buffer: [u8; 16] = [0; 16];
-            memory.read(&caller.as_context(), a_ptr as usize, &mut a_buffer)
-                .expect("Failed to read memory for a_ptr.");
-            memory.read(caller.as_context(), b_ptr as usize, &mut b_buffer)
-                .expect("Failed to read memory for b_ptr.");
+            let mut buffer: [u8; 32] = [0; 32];
+            memory.read(&caller.as_context(), ptr as usize, &mut buffer)
+                .expect("Failed to read memory for ptr.");
 
-            let a = i128::from_le_bytes(a_buffer);
-            let b = i128::from_le_bytes(b_buffer);
+            let (a_buf, b_buf) = buffer.split_at(16);
+            let a_buf: [u8; 16] = a_buf.try_into().expect("a_buf is wrong size");
+            let b_buf: [u8; 16] = b_buf.try_into().expect("b_buf is wrong size");
+            let a = i128::from_le_bytes(a_buf);
+            let b = i128::from_le_bytes(b_buf);
 
             let result = a.checked_add(b).expect("Failed to add two i128's");
             let result = result.to_le_bytes();
-            memory.write(caller.as_context_mut(), 0, &result)
+            memory.write(caller.as_context_mut(), 32, &result)
                 .expect("Couldn't write result to memory");
-            0
+            32
         },
     )
 }
@@ -257,6 +256,10 @@ pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>
     funcs.push(FuncMap::new(
         "native_add_i128",
         define_add_native_int128(&mut store),
+    ));
+    funcs.push(FuncMap::new(
+        "native_add_i128_memory",
+        define_add_native_int128_memory(&mut store),
     ));
     funcs.push(FuncMap::new("mul", define_mul(&mut store)));
     funcs.push(FuncMap::new("fold", define_fold(&mut store)));
