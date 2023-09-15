@@ -12,7 +12,6 @@ pub mod serialization;
 
 // Public exports
 pub use runtime::get_all_functions;
-use smallvec::SmallVec;
 
 // Test-related
 #[cfg(test)]
@@ -24,7 +23,7 @@ pub struct ClarityWasmContext {}
 #[derive(Debug, Copy, Clone)]
 pub struct Ptr {
     pub offset: i32,
-    pub len: i32
+    pub len: i32,
 }
 
 impl Ptr {

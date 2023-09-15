@@ -17,7 +17,9 @@ wasmer =  { version = "4.2.0", features = ["wasmer-compiler-llvm"] }
 wasmer-compiler-llvm = "4.2.0"
 mimalloc = { version = "*", default-features = false }
 bv = "0.11.1"
-smallvec = "1.11.0"
+num = "0.4.1"
+num-derive = "0.4.0"
+num-traits = "0.2.16"
 
 [dev-dependencies]
 criterion = "0.5.1"

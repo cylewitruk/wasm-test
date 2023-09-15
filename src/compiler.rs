@@ -55,7 +55,9 @@ impl DiagnosableError for WasmGenerationError {
         match self {
             WasmGenerationError::NotImplemented => "Not implemented".to_string(),
             WasmGenerationError::InternalError(msg) => format!("Internal error: {}", msg),
-            WasmGenerationError::EmptyListTraversal => "Attempted to traverse an empty list".to_string(),
+            WasmGenerationError::EmptyListTraversal => {
+                "Attempted to traverse an empty list".to_string()
+            }
             WasmGenerationError::UnknownFunction(name) => format!("Unknown function: {}", name),
         }
     }

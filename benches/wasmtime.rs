@@ -77,7 +77,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("add", |b| {
+    c.bench_function("add_externref", |b| {
         let instance_fn = instance
             .get_func(&mut store, "add_extref_test")
             .expect("Failed to get fn");
@@ -157,13 +157,13 @@ criterion_main!(benches);
 
 #[inline]
 pub fn generate_wasm() -> Vec<u8> {
-    use walrus::{Export, ExportItem, FunctionBuilder, Module, ModuleConfig, ValType};
+    use walrus::{ExportItem, FunctionBuilder, Module, ModuleConfig, ValType};
 
     // Construct a new Walrus module.
     let config = ModuleConfig::new();
     let mut module = Module::with_config(config);
 
-    // Import the API definition for `add`.
+    // Import the API definition for `add_extref`.
     let add_extref_ty = module.types.add(
         &[ValType::Externref, ValType::Externref],
         &[ValType::Externref],
@@ -183,19 +183,32 @@ pub fn generate_wasm() -> Vec<u8> {
     let (memory_add_i128_id, _) =
         module.add_import_func("clarity", "memory_add_i128", memory_add_i128_ty);
 
-    // Import the API definition for `mul`.
+    // Import the API definition for `mul_extref`.
     let mul_extref_ty = module.types.add(
         &[ValType::Externref, ValType::Externref],
         &[ValType::Externref],
     );
     let (mul_extref_id, _) = module.add_import_func("clarity", "mul", mul_extref_ty);
 
-    // Import the API definition for `fold`.
+    // Import the API definition for `fold_extref`.
     let fold_extref_ty = module.types.add(
         &[ValType::Funcref, ValType::Externref, ValType::Externref],
         &[ValType::Externref],
     );
     let (fold_extref_id, _) = module.add_import_func("clarity", "fold_extref", fold_extref_ty);
+
+    // Import the API definition for `fold_memory`.
+    let fold_memory_ty = module.types.add(
+        &[
+            ValType::Funcref,
+            ValType::I32,
+            ValType::I32,
+            ValType::I32,
+            ValType::I32,
+        ],
+        &[ValType::I32, ValType::I32, ValType::I32],
+    );
+    let (fold_memory_id, _) = module.add_import_func("clarity", "fold_memory", fold_memory_ty);
 
     // ================================================================================
     // `add-square` function.
@@ -256,7 +269,10 @@ pub fn generate_wasm() -> Vec<u8> {
     let a = module.locals.add(ValType::Externref);
     let b = module.locals.add(ValType::Externref);
 
-    add.func_body().local_get(a).local_get(b).call(add_extref_id);
+    add.func_body()
+        .local_get(a)
+        .local_get(b)
+        .call(add_extref_id);
 
     let add_fn = add.finish(vec![a, b], &mut module.funcs);
     module.exports.add("add_extref_test", add_fn);
@@ -286,7 +302,9 @@ pub fn generate_wasm() -> Vec<u8> {
 
     let native_add_i128_fn =
         native_add_i128.finish(vec![a_low, a_high, b_low, b_high], &mut module.funcs);
-    module.exports.add("native_add_i128_test", native_add_i128_fn);
+    module
+        .exports
+        .add("native_add_i128_test", native_add_i128_fn);
     // ////////////////////////////////////////////////////////////////////////////////
 
     // ================================================================================
@@ -306,7 +324,9 @@ pub fn generate_wasm() -> Vec<u8> {
         .call(memory_add_i128_id);
 
     let memory_add_i128_fn = memory_add_i128.finish(vec![ptr], &mut module.funcs);
-    module.exports.add("memory_add_i128_test", memory_add_i128_fn);
+    module
+        .exports
+        .add("memory_add_i128_test", memory_add_i128_fn);
     // ////////////////////////////////////////////////////////////////////////////////
 
     let memory_id = module.memories.add_local(false, 1024, None);

@@ -12,6 +12,9 @@ criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
 
 pub fn criterion_benchmark(c: &mut Criterion) {
+    // ================================================================================
+    // `uint` serialization
+    // ================================================================================
     c.bench_function("uint", |b| {
         let value = Value::UInt(u128::MAX);
 
@@ -21,6 +24,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `int` serialization
+    // ================================================================================
     c.bench_function("int", |b| {
         let value = Value::Int(i128::MAX);
 
@@ -30,6 +36,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `bool` serialization
+    // ================================================================================
     c.bench_function("bool", |b| {
         let value = Value::Bool(true);
 
@@ -39,6 +48,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `string-ascii` serialization
+    // ================================================================================
     c.bench_function("string-ascii", |b| {
         let value = Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
             data: "hello world!".as_bytes().to_vec(),
@@ -50,6 +62,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `string-utf8` serialization
+    // ================================================================================
     c.bench_function("string-utf8", |b| {
         let str = "hello world!";
         let mut data = Vec::<Vec<u8>>::new();
@@ -64,6 +79,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `buffer` serialization
+    // ================================================================================
     c.bench_function("buffer", |b| {
         let data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let value = Value::Sequence(SequenceData::Buffer(BuffData { data: data.clone() }));
@@ -74,6 +92,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `response` serialization
+    // ================================================================================
     c.bench_function("response", |b| {
         let value = Value::Response(ResponseData {
             committed: true,
@@ -86,6 +107,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `optional` serialization
+    // ================================================================================
     c.bench_function("optional", |b| {
         let value = Value::Optional(OptionalData {
             data: Some(Box::new(Value::Int(5))),
@@ -99,10 +123,12 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("Lists");
 
+    // ================================================================================
+    // `list` (empty) serialization
+    // ================================================================================
     group.bench_function("list-empty", |b| {
         let value = Value::Sequence(SequenceData::List(ListData {
-            data: vec![
-            ],
+            data: vec![],
             type_signature: ListTypeData::new_list(TypeSignature::IntType, 5)
                 .expect("Could not construct list"),
         }));
@@ -113,6 +139,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `list` serialization, containing five integers
+    // ================================================================================
     group.bench_function("list-5-ints", |b| {
         let value = Value::Sequence(SequenceData::List(ListData {
             data: vec![
@@ -132,6 +161,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // ================================================================================
+    // `list` serialization, containing five unsigned integers
+    // ================================================================================
     group.bench_function("list-5-uints", |b| {
         let value = Value::Sequence(SequenceData::List(ListData {
             data: vec![

@@ -3,9 +3,11 @@
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
-use crate::serialization::{serialize_clarity_value, deserialize_clarity_value, deserialize_clarity_seq_to_ptrs};
-use crate::ClarityWasmContext;
 use crate::runtime::FuncResultTrait;
+use crate::serialization::{
+    deserialize_clarity_seq_to_ptrs, deserialize_clarity_value, serialize_clarity_value,
+};
+use crate::ClarityWasmContext;
 use clarity::vm::{
     types::{CharType, SequenceData},
     Value,
@@ -152,7 +154,9 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
          seq_ptr: i32,
          seq_len: i32,
          init_ptr: i32,
-         init_len: i32| -> FuncResult {
+         init_len: i32|
+         -> FuncResult {
+            // The function to fold over must be supplied.
             if func.is_none() {
                 return FuncResult::error(RuntimeError::FunctionArgumentRequired);
             }
@@ -166,7 +170,7 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
             // Deserialize the sequence to a list of pointers to its values (we don't actually care about
             // the values in this function, so we don't need to deserialize them).
             let sequence_ptrs = deserialize_clarity_seq_to_ptrs(seq_data)
-                .map_err(|_| return FuncResult::error(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| FuncResult::error(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
 
             // Grab our function to fold over.
@@ -176,32 +180,37 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
             // function call for further rounds.
             let mut is_first = true;
 
+            // We'll re-use the same result array to avoid re-allocations.
             let mut result = [Val::I32(0), Val::I32(0), Val::I32(0)];
-            
+
+            // Iterate through each of the (pointers-to) the values of the sequence and call the
+            // provided function to fold over.
             for ptr in sequence_ptrs {
                 if is_first {
                     func.call(
-                        &mut caller, 
+                        &mut caller,
                         &[
                             Val::I32(ptr.offset),
                             Val::I32(ptr.len),
                             Val::I32(init_ptr),
-                            Val::I32(init_len)
+                            Val::I32(init_len),
                         ],
-                        &mut result
-                    ).unwrap();
+                        &mut result,
+                    )
+                    .unwrap();
                     is_first = false;
                 } else {
                     func.call(
-                        &mut caller, 
+                        &mut caller,
                         &[
                             Val::I32(ptr.offset),
                             Val::I32(ptr.len),
                             result[1].clone(),
-                            result[2].clone()
+                            result[2].clone(),
                         ],
-                        &mut result
-                    ).unwrap();
+                        &mut result,
+                    )
+                    .unwrap();
                 }
             }
 

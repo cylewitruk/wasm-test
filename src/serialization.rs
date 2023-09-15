@@ -1,8 +1,12 @@
-use clarity::vm::{types::{
-    BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier, ResponseData,
-    SequenceData, StandardPrincipalData, Value, CallableData, TraitIdentifier,
-}, ContractName};
-use smallvec::SmallVec;
+use clarity::vm::{
+    types::{
+        BuffData, CallableData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
+        ResponseData, SequenceData, StandardPrincipalData, TraitIdentifier, Value,
+    },
+    ContractName,
+};
+use num::FromPrimitive;
+use num_derive::{FromPrimitive, ToPrimitive};
 
 use crate::Ptr;
 
@@ -22,10 +26,10 @@ pub enum SerializationError {
     FailedToDeserializeTraitName,
     FailedToDeserializePtr,
     InvalidPtrLength,
-    TypeNotAllowed { received: TypeIndicator }
+    TypeNotAllowed { received: TypeIndicator },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 pub enum TypeIndicator {
     UInt = 1,
     Int = 2,
@@ -71,24 +75,11 @@ fn get_type_indicator_for_clarity_value(value: &Value) -> u8 {
 fn type_indicator_byte_to_type_indicator(
     indicator: u8,
 ) -> Result<TypeIndicator, SerializationError> {
-    let ind = match indicator {
-        1 => TypeIndicator::UInt,
-        2 => TypeIndicator::Int,
-        3 => TypeIndicator::Bool,
-        4 => TypeIndicator::Optional,
-        5 => TypeIndicator::Response,
-        6 => TypeIndicator::AsciiString,
-        7 => TypeIndicator::Utf8String,
-        8 => TypeIndicator::Buffer,
-        9 => TypeIndicator::List,
-        10 => TypeIndicator::StandardPrincipal,
-        11 => TypeIndicator::ContractPrincipal,
-        12 => TypeIndicator::CallableContract,
-        13 => TypeIndicator::Tuple,
-        _ => Err(SerializationError::InvalidTypeIndicator(indicator))?,
-    };
-
-    Ok(ind)
+    let ind = TypeIndicator::from_u8(indicator);
+    match ind {
+        Some(i) => Ok(i),
+        None => Err(SerializationError::InvalidTypeIndicator(indicator))?,
+    }
 }
 
 /// Deserializes a clarity sequence value (buffer, ascii, utf8, list, etc.) to a list of
@@ -101,13 +92,16 @@ pub fn deserialize_clarity_seq_to_ptrs(buffer: &[u8]) -> Result<Vec<Ptr>, Serial
 
     // This method only supports sequence types.
     if ![
-            TypeIndicator::Buffer, 
-            TypeIndicator::AsciiString, 
-            TypeIndicator::Utf8String, 
-            TypeIndicator::List
-        ].contains(&type_indicator) 
+        TypeIndicator::Buffer,
+        TypeIndicator::AsciiString,
+        TypeIndicator::Utf8String,
+        TypeIndicator::List,
+    ]
+    .contains(&type_indicator)
     {
-        Err(SerializationError::TypeNotAllowed { received: type_indicator })?;
+        Err(SerializationError::TypeNotAllowed {
+            received: type_indicator,
+        })?;
     }
 
     // Extract the length of this serialized value (excluding header).
@@ -194,7 +188,7 @@ pub fn deserialize_clarity_value(buffer: &[u8]) -> Result<Value, SerializationEr
             let bytes: [u8; 16] = value[0..16]
                 .try_into()
                 .map_err(|_| SerializationError::IndexOutOfRange)?;
-            
+
             Value::UInt(u128::from_le_bytes(bytes))
         }
         TypeIndicator::Int => {
@@ -364,7 +358,7 @@ pub fn deserialize_clarity_value(buffer: &[u8]) -> Result<Value, SerializationEr
             // Build the `QualifiedContractIdentifier`.
             let contract_id = QualifiedContractIdentifier::new(
                 standard_principal,
-                ContractName::from(ctr_name_str)
+                ContractName::from(ctr_name_str),
             );
 
             let mut trait_id: Option<TraitIdentifier> = None;
@@ -380,30 +374,28 @@ pub fn deserialize_clarity_value(buffer: &[u8]) -> Result<Value, SerializationEr
                     .map_err(|_| SerializationError::IndexOutOfRange)?;
 
                 // Build the trait's standard principal.
-                let trait_principal = StandardPrincipalData(
-                    trait_bytes[1],
-                    trait_principal_data
-                );
+                let trait_principal = StandardPrincipalData(trait_bytes[1], trait_principal_data);
 
                 // Extract the trait name.
                 let trait_name_len_bytes: [u8; 2] = trait_bytes[23..=24]
                     .try_into()
                     .map_err(|_| SerializationError::FailedToDeserializeLengthIndicator)?;
                 let trait_name_len = u16::from_le_bytes(trait_name_len_bytes);
-                let trait_name_str = std::str::from_utf8(&trait_bytes[24..(24 + trait_name_len as usize)])
-                    .map_err(|_| SerializationError::FailedToDeserializeTraitName)?;
+                let trait_name_str =
+                    std::str::from_utf8(&trait_bytes[24..(24 + trait_name_len as usize)])
+                        .map_err(|_| SerializationError::FailedToDeserializeTraitName)?;
 
                 // Construct the trait identifier and attach it to the contract identifier.
                 trait_id = Some(TraitIdentifier::new(
                     trait_principal,
                     contract_id.name.clone(),
-                    trait_name_str.into()
+                    trait_name_str.into(),
                 ));
             }
 
             Value::CallableContract(CallableData {
                 contract_identifier: contract_id,
-                trait_identifier: trait_id
+                trait_identifier: trait_id,
             })
         }
         TypeIndicator::Tuple => {
@@ -429,9 +421,7 @@ pub fn serialize_clarity_value(value: &Value) -> Result<Vec<u8>, SerializationEr
     header.insert(0, get_type_indicator_for_clarity_value(value));
 
     match value {
-        Value::UInt(n) => {
-            result.extend_from_slice(&n.to_le_bytes())
-        }
+        Value::UInt(n) => result.extend_from_slice(&n.to_le_bytes()),
         Value::Int(n) => {
             result.extend_from_slice(&n.to_le_bytes());
         }
@@ -545,32 +535,4 @@ pub fn serialize_clarity_value(value: &Value) -> Result<Vec<u8>, SerializationEr
     header.append(&mut result);
 
     Ok(header)
-}
-
-impl Ptr {
-    pub fn serialize(&self) -> SmallVec<[u8; 8]> {
-        let mut vec = SmallVec::<[u8; 8]>::with_capacity(8);
-        vec.extend_from_slice(&self.offset.to_le_bytes());
-        vec.extend_from_slice(&self.len.to_le_bytes());
-        vec
-    }
-
-    pub fn deserialize(data: &[u8]) -> Result<Self, SerializationError> {
-        if data.len() != 8 {
-            Err(SerializationError::InvalidPtrLength)?;
-        }
-
-        let offset_bytes: [u8; 4] = data[0..4]
-            .try_into()
-            .map_err(|_| SerializationError::FailedToDeserializePtr)?;
-
-        let len_bytes: [u8; 4] = data[4..8]
-            .try_into()
-            .map_err(|_| SerializationError::FailedToDeserializePtr)?;
-
-        Ok(Ptr {
-            offset: i32::from_le_bytes(offset_bytes),
-            len: i32::from_le_bytes(len_bytes)
-        })
-    }
 }
