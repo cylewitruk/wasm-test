@@ -5,9 +5,9 @@ use wasmtime::{Config, Engine, ExternRef, Store, Val};
 
 #[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]
-fn test_add(a: Value, b: Value) -> Value {
+fn test_add_extref(a: Value, b: Value) -> Value {
     let mut store = get_new_store();
-    let add_fn = crate::runtime::native_functions::define_add(&mut store);
+    let add_fn = crate::runtime::native_functions::define_add_extref(&mut store);
     let params = &[
         Val::ExternRef(Some(ExternRef::new(a))),
         Val::ExternRef(Some(ExternRef::new(b))),

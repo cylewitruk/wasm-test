@@ -2,6 +2,9 @@ use clarity::vm::{types::{
     BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier, ResponseData,
     SequenceData, StandardPrincipalData, Value, CallableData, TraitIdentifier,
 }, ContractName};
+use smallvec::SmallVec;
+
+use crate::Ptr;
 
 #[derive(Debug, Clone, Copy)]
 pub enum SerializationError {
@@ -16,11 +19,14 @@ pub enum SerializationError {
     FailedToDeserializeListLength,
     AttemtToDeserializeZeroLengthBuffer,
     FailedToDeserializeContractName,
-    FailedToDeserializeTraitName
+    FailedToDeserializeTraitName,
+    FailedToDeserializePtr,
+    InvalidPtrLength,
+    TypeNotAllowed { received: TypeIndicator }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum TypeIndicator {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypeIndicator {
     UInt = 1,
     Int = 2,
     Bool = 3,
@@ -85,35 +91,103 @@ fn type_indicator_byte_to_type_indicator(
     Ok(ind)
 }
 
-/// Deserializes a Clarity `Value` from the provided buffer using the given
-/// `TypeSignature`. More documentation regarding how values are serialized
-/// can be found in the `pass_argument_to_wasm` function.
+/// Deserializes a clarity sequence value (buffer, ascii, utf8, list, etc.) to a list of
+/// `Ptr`s. This is used to allow the efficient iteration over a list's raw bytes without
+/// actually deserializing the values. Useful for functions such as `fold` where we are
+/// only passing the pointers further to the function to fold over.
 #[inline]
-pub fn deserialize_clarity_value(buffer: &[u8]) -> Result<Value, SerializationError> {
-    if buffer.is_empty() {
-        Err(SerializationError::AttemtToDeserializeZeroLengthBuffer)?;
-    }
-
+pub fn deserialize_clarity_seq_to_ptrs(buffer: &[u8]) -> Result<Vec<Ptr>, SerializationError> {
     let type_indicator = type_indicator_byte_to_type_indicator(buffer[0])?;
 
+    // This method only supports sequence types.
+    if ![
+            TypeIndicator::Buffer, 
+            TypeIndicator::AsciiString, 
+            TypeIndicator::Utf8String, 
+            TypeIndicator::List
+        ].contains(&type_indicator) 
+    {
+        Err(SerializationError::TypeNotAllowed { received: type_indicator })?;
+    }
+
+    // Extract the length of this serialized value (excluding header).
     let length_indicator_bytes: [u8; 2] = buffer[1..=2]
         .try_into()
         .map_err(|_| SerializationError::FailedToDeserializeLengthIndicator)?;
     let length_indicator = u16::from_le_bytes(length_indicator_bytes);
 
+    // Create a slice that contains only the value bytes (excluding the header).
     let value = &buffer[3..];
-    let length = value.len() as u16;
 
-    if length != length_indicator {
+    // Ensure that our value slice length matches the parsed value length indicator.
+    let value_length = value.len() as u16;
+    if value_length != length_indicator {
         Err(SerializationError::LengthIndicatorDoesNotMatchBufferLength)?
     }
 
+    // Split to retrieve the list length (first two bytes of the buffer)
+    let (list_len_bytes, value_bytes) = value.split_at(2);
+
+    // Deserialize the list length
+    let list_len = u16::from_le_bytes(
+        list_len_bytes
+            .try_into()
+            .map_err(|_| SerializationError::FailedToDeserializeListLength)?,
+    );
+
+    let mut ptrs = Vec::<Ptr>::with_capacity(list_len as usize);
+    let mut index = 0;
+
+    for _i in 0..list_len {
+        // Deserialize the length of the next item
+        let value_len = u16::from_le_bytes(
+            value_bytes[(index + 1)..=(index + 2)]
+                .try_into()
+                .map_err(|_| SerializationError::FailedToDeserializeLengthIndicator)?,
+        ) as usize;
+
+        ptrs.push(Ptr::new(index as i32, value_len as i32));
+        index += value_len + 3;
+    }
+
+    Ok(ptrs)
+}
+
+/// Deserializes a Clarity `Value` from the provided buffer using the given
+/// `TypeSignature`. More documentation regarding how values are serialized
+/// can be found in the `pass_argument_to_wasm` function.
+#[inline]
+pub fn deserialize_clarity_value(buffer: &[u8]) -> Result<Value, SerializationError> {
+    // We cannot deserialize empty buffers.
+    if buffer.is_empty() {
+        Err(SerializationError::AttemtToDeserializeZeroLengthBuffer)?;
+    }
+
+    // Convert the type indicator byte to a `TypeIndicator`.
+    let type_indicator = type_indicator_byte_to_type_indicator(buffer[0])?;
+
+    // Extract the length of this serialized value (excluding header).
+    let length_indicator_bytes: [u8; 2] = buffer[1..=2]
+        .try_into()
+        .map_err(|_| SerializationError::FailedToDeserializeLengthIndicator)?;
+    let length_indicator = u16::from_le_bytes(length_indicator_bytes);
+
+    // Create a slice that contains only the value bytes (excluding the header).
+    let value = &buffer[3..];
+
+    // Ensure that our value slice length matches the parsed value length indicator.
+    let value_length = value.len() as u16;
+    if value_length != length_indicator {
+        Err(SerializationError::LengthIndicatorDoesNotMatchBufferLength)?
+    }
+
+    // Deserialize....
     let val = match type_indicator {
         TypeIndicator::UInt => {
-            if length != 16 {
+            if value_length != 16 {
                 Err(SerializationError::InvalidBufferLength {
                     expected: 16,
-                    received: length,
+                    received: value_length,
                 })?;
             }
 
@@ -124,10 +198,10 @@ pub fn deserialize_clarity_value(buffer: &[u8]) -> Result<Value, SerializationEr
             Value::UInt(u128::from_le_bytes(bytes))
         }
         TypeIndicator::Int => {
-            if length != 16 {
+            if value_length != 16 {
                 Err(SerializationError::InvalidBufferLength {
                     expected: 16,
-                    received: length,
+                    received: value_length,
                 })?;
             }
 
@@ -139,8 +213,8 @@ pub fn deserialize_clarity_value(buffer: &[u8]) -> Result<Value, SerializationEr
         }
         TypeIndicator::Bool => {
             debug_assert!(
-                length == 1,
-                "Expected buffer length to be 1 for bool, received {length}"
+                value_length == 1,
+                "Expected buffer length to be 1 for bool, received {value_length}"
             );
 
             let val = value[0];
@@ -471,4 +545,32 @@ pub fn serialize_clarity_value(value: &Value) -> Result<Vec<u8>, SerializationEr
     header.append(&mut result);
 
     Ok(header)
+}
+
+impl Ptr {
+    pub fn serialize(&self) -> SmallVec<[u8; 8]> {
+        let mut vec = SmallVec::<[u8; 8]>::with_capacity(8);
+        vec.extend_from_slice(&self.offset.to_le_bytes());
+        vec.extend_from_slice(&self.len.to_le_bytes());
+        vec
+    }
+
+    pub fn deserialize(data: &[u8]) -> Result<Self, SerializationError> {
+        if data.len() != 8 {
+            Err(SerializationError::InvalidPtrLength)?;
+        }
+
+        let offset_bytes: [u8; 4] = data[0..4]
+            .try_into()
+            .map_err(|_| SerializationError::FailedToDeserializePtr)?;
+
+        let len_bytes: [u8; 4] = data[4..8]
+            .try_into()
+            .map_err(|_| SerializationError::FailedToDeserializePtr)?;
+
+        Ok(Ptr {
+            offset: i32::from_le_bytes(offset_bytes),
+            len: i32::from_le_bytes(len_bytes)
+        })
+    }
 }

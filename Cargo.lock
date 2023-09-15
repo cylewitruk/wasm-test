@@ -3051,6 +3051,7 @@ dependencies = [
  "mimalloc",
  "rusqlite",
  "sha2 0.10.7",
+ "smallvec",
  "test-case",
  "walrus",
  "wasmer",

@@ -3,12 +3,16 @@
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
+use crate::serialization::{serialize_clarity_value, deserialize_clarity_value, deserialize_clarity_seq_to_ptrs};
 use crate::ClarityWasmContext;
+use crate::runtime::FuncResultTrait;
 use clarity::vm::{
     types::{CharType, SequenceData},
     Value,
 };
 use wasmtime::{AsContext, AsContextMut, Caller, ExternRef, Func, Val};
+
+use super::{FuncResult, RuntimeError};
 
 /// Holds a native function name and function implementation.
 #[derive(Debug)]
@@ -28,7 +32,7 @@ impl FuncMap {
 
 /// Defines the `add` function.
 #[inline]
-pub fn define_add(mut store: impl AsContextMut) -> Func {
+pub fn define_add_extref(mut store: impl AsContextMut) -> Func {
     Func::wrap(&mut store, |a: Option<ExternRef>, b: Option<ExternRef>| {
         let a = a.unwrap();
         let b = b.unwrap();
@@ -106,7 +110,7 @@ pub fn define_add_memory_int128(mut store: impl AsContextMut<Data = ClarityWasmC
 
 /// Defines the `mul` (multiply) function.
 #[inline]
-pub fn define_mul(mut store: impl AsContextMut) -> Func {
+pub fn define_mul_extref(mut store: impl AsContextMut) -> Func {
     Func::wrap(&mut store, |a: Option<ExternRef>, b: Option<ExternRef>| {
         let a = a.unwrap();
         let b = b.unwrap();
@@ -145,14 +149,70 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,
          func: Option<Func>,
-         seq: Option<ExternRef>,
-         init: Option<ExternRef>| { Ok(()) },
+         seq_ptr: i32,
+         seq_len: i32,
+         init_ptr: i32,
+         init_len: i32| -> FuncResult {
+            if func.is_none() {
+                return FuncResult::error(RuntimeError::FunctionArgumentRequired);
+            }
+
+            // Retrieve an instance of the `vm_mem` exported memory.
+            let memory = caller.get_export("vm_mem").unwrap().into_memory().unwrap();
+            // Get a handle to a slice representing the in-memory data.
+            let data = memory.data(&caller);
+            // Extract the raw serialized sequence.
+            let seq_data = &data[seq_ptr as usize..seq_len as usize];
+            // Deserialize the sequence to a list of pointers to its values (we don't actually care about
+            // the values in this function, so we don't need to deserialize them).
+            let sequence_ptrs = deserialize_clarity_seq_to_ptrs(seq_data)
+                .map_err(|_| return FuncResult::error(RuntimeError::FailedToDeserializeValueFromMemory))
+                .unwrap();
+
+            // Grab our function to fold over.
+            let func = func.unwrap();
+
+            // We use the `init` value for the first round, and the result of the
+            // function call for further rounds.
+            let mut is_first = true;
+
+            let mut result = [Val::I32(0), Val::I32(0), Val::I32(0)];
+            
+            for ptr in sequence_ptrs {
+                if is_first {
+                    func.call(
+                        &mut caller, 
+                        &[
+                            Val::I32(ptr.offset),
+                            Val::I32(ptr.len),
+                            Val::I32(init_ptr),
+                            Val::I32(init_len)
+                        ],
+                        &mut result
+                    ).unwrap();
+                    is_first = false;
+                } else {
+                    func.call(
+                        &mut caller, 
+                        &[
+                            Val::I32(ptr.offset),
+                            Val::I32(ptr.len),
+                            result[1].clone(),
+                            result[2].clone()
+                        ],
+                        &mut result
+                    ).unwrap();
+                }
+            }
+
+            (0, result[1].unwrap_i32(), result[2].unwrap_i32())
+        },
     )
 }
 
 /// Defines the `fold` function.
 #[inline]
-pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_fold_extref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,
@@ -253,14 +313,11 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
 #[inline]
 pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Vec<FuncMap> {
     vec![
-        FuncMap::new("add", define_add(&mut store)),
-        FuncMap::new(
-            "native_add_i128",
-            define_add_native_int128(&mut store)),
-        FuncMap::new(
-            "memory_add_i128",
-            define_add_memory_int128(&mut store)),
-        FuncMap::new("mul", define_mul(&mut store)),
-        FuncMap::new("fold", define_fold(&mut store))
+        FuncMap::new("add_extref", define_add_extref(&mut store)),
+        FuncMap::new("native_add_i128", define_add_native_int128(&mut store)),
+        FuncMap::new("memory_add_i128", define_add_memory_int128(&mut store)),
+        FuncMap::new("mul_extref", define_mul_extref(&mut store)),
+        FuncMap::new("fold_extref", define_fold_extref(&mut store)),
+        FuncMap::new("fold_memory", define_fold_memory(&mut store)),
     ]
 }
