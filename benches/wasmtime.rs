@@ -260,7 +260,7 @@ pub fn generate_wasm() -> Vec<u8> {
     funcs.push(define_fold_add_square_extref_test(&mut module, &funcs));
 
     // Create and export a Wasm memory
-    let memory_id = module.memories.add_local(false, 1024, None);
+    let memory_id = module.memories.add_local(false, 1, None);
     module.exports.add("vm_mem", ExportItem::Memory(memory_id));
 
     // Compile the module.
