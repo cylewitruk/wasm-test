@@ -5,19 +5,29 @@ pub use native_functions::get_all_functions;
 use num::FromPrimitive;
 use num_derive::{FromPrimitive, ToPrimitive};
 
+use crate::Ptr;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 pub enum RuntimeError {
     InvalidRuntimeError = -1,
     None = 0,
     FunctionArgumentRequired = 1,
     FailedToDeserializeValueFromMemory = 2,
+    FailedToDiscernSerializedType = 3,
+    FunctionOnlySupportsIntegralValues = 4,
+    ArgumentTypeMismatch = 5,
+    ArithmeticOverflow = 6,
+    FailedToWriteResultToMemory = 7
 }
 
 pub type FuncResult = (i32, i32, i32);
 
 pub trait FuncResultTrait {
-    fn error(error: RuntimeError) -> FuncResult {
+    fn err(error: RuntimeError) -> FuncResult {
         (error as i32, 0, 0)
+    }
+    fn ok(ptr: Ptr) -> FuncResult {
+        (0, ptr.offset, ptr.len)
     }
     fn is_success(&self) -> bool;
     fn get_error(&self) -> RuntimeError;

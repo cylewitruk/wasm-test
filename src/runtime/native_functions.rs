@@ -6,6 +6,8 @@
 use crate::runtime::FuncResultTrait;
 use crate::serialization::{
     deserialize_clarity_seq_to_ptrs, deserialize_clarity_value, serialize_clarity_value,
+    get_type_indicator_from_serialized_value,
+    TypeIndicator
 };
 use crate::ClarityWasmContext;
 use clarity::vm::{
@@ -32,7 +34,9 @@ impl FuncMap {
     }
 }
 
-/// Defines the `add` function.
+/// Defines the `add_extref` function. This function makes full use of `ExternRef`s
+/// instead of value types or memory, meaning that the values coming across are
+/// pure references to real Clarity `Value` enum variants.
 #[inline]
 pub fn define_add_extref(mut store: impl AsContextMut) -> Func {
     Func::wrap(&mut store, |a: Option<ExternRef>, b: Option<ExternRef>| {
@@ -65,8 +69,11 @@ pub fn define_add_extref(mut store: impl AsContextMut) -> Func {
     })
 }
 
+/// Defines the `add_native_int128` function. This function makes use of Wasm "native"
+/// types for parameters and return values. As Wasm doesn't have support for 128-bit
+/// integers, we must pass two sets of low/high i64's and return one set of high/low i64's.
 #[inline]
-pub fn define_add_native_int128(mut store: impl AsContextMut) -> Func {
+pub fn define_add_native(mut store: impl AsContextMut) -> Func {
     Func::wrap(
         &mut store,
         |a_low: i64, a_high: i64, b_low: i64, b_high: i64| {
@@ -84,28 +91,82 @@ pub fn define_add_native_int128(mut store: impl AsContextMut) -> Func {
 }
 
 #[inline]
-pub fn define_add_memory_int128(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, ClarityWasmContext>, ptr: i32| -> i32 {
+        |mut caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, a_len: i32, b_ptr: i32, b_len: i32| -> FuncResult {
+            // Retrieve an instance of the `vm_mem` exported memory.
             let memory = caller.get_export("vm_mem").unwrap().into_memory().unwrap();
+            // Get a handle to a slice representing the in-memory data.
+            let data = memory.data(&caller);
 
-            let mut buffer: [u8; 32] = [0; 32];
-            memory
-                .read(&caller.as_context(), ptr as usize, &mut buffer)
-                .expect("Failed to read memory for ptr.");
+            // Fetch the bytes for `a` from memory.
+            let a_bytes: [u8; 16] = data[(a_ptr+3) as usize..(a_ptr+3 + a_len-3) as usize]
+                .try_into()
+                .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .unwrap();
 
-            let a_buf: [u8; 16] = buffer[0..16].try_into().expect("a_buf is wrong size");
-            let b_buf: [u8; 16] = buffer[16..32].try_into().expect("b_buf is wrong size");
-            let a = i128::from_le_bytes(a_buf);
-            let b = i128::from_le_bytes(b_buf);
+            // Get the type of `a`.
+            let a_ty = get_type_indicator_from_serialized_value(&a_bytes)
+                .map_err(|_| FuncResult::err(RuntimeError::FailedToDiscernSerializedType))
+                .unwrap();
 
-            let result = a.checked_add(b).expect("Failed to add two i128's");
-            let result = result.to_le_bytes();
-            memory
-                .write(caller.as_context_mut(), 32, &result)
-                .expect("Couldn't write result to memory");
-            32
+            // Assert that `a` is an integral type.
+            if !a_ty.is_integer() {
+                return FuncResult::err(RuntimeError::FunctionOnlySupportsIntegralValues);
+            }
+
+            // Fetch the bytes for `b` from memory.
+            let b_bytes: [u8; 16] = data[b_ptr as usize..(b_ptr+3 + b_len-3) as usize]
+                .try_into()
+                .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .unwrap();
+
+            // Get the type of `b`.
+            let b_ty = get_type_indicator_from_serialized_value(&b_bytes)
+                .map_err(|_| FuncResult::err(RuntimeError::FailedToDiscernSerializedType))
+                .unwrap();
+
+            // Assert that `b` is an integral type.
+            if !b_ty.is_integer() {
+                return FuncResult::err(RuntimeError::FunctionOnlySupportsIntegralValues);
+            }
+
+            // Assert that `a` and `b` are of the same type.
+            if a_ty != b_ty {
+                return FuncResult::err(RuntimeError::ArgumentTypeMismatch);
+            }
+
+            // Result buffer
+            let mut result: [u8; 16] = [0; 16];
+
+            if a_ty == TypeIndicator::Int {
+                // Handle case for signed integers
+                let a = i128::from_le_bytes(a_bytes);
+                let b = i128::from_le_bytes(b_bytes);
+                if let Some(add_result) = a.checked_add(b) {
+                    result = add_result.to_le_bytes();
+                } else {
+                    return FuncResult::err(RuntimeError::ArithmeticOverflow);
+                }
+            } else if a_ty == TypeIndicator::UInt {
+                // Handle case for unsigned integers
+                let a = u128::from_le_bytes(a_bytes);
+                let b = u128::from_le_bytes(b_bytes);
+                if let Some(add_result) = a.checked_add(b) {
+                    result = add_result.to_le_bytes();
+                } else {
+                    return FuncResult::err(RuntimeError::ArithmeticOverflow);
+                }
+            }
+
+            let alloc = caller.data_mut().alloc.alloc_for_buffer(&result);
+
+            memory.write(&mut caller, alloc.offset as usize, &result)
+                .map_err(|_| FuncResult::err(RuntimeError::FailedToWriteResultToMemory))
+                .unwrap();
+
+            (0, 0, 0)
         },
     )
 }
@@ -158,7 +219,7 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
          -> FuncResult {
             // The function to fold over must be supplied.
             if func.is_none() {
-                return FuncResult::error(RuntimeError::FunctionArgumentRequired);
+                return FuncResult::err(RuntimeError::FunctionArgumentRequired);
             }
 
             // Retrieve an instance of the `vm_mem` exported memory.
@@ -170,7 +231,7 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
             // Deserialize the sequence to a list of pointers to its values (we don't actually care about
             // the values in this function, so we don't need to deserialize them).
             let sequence_ptrs = deserialize_clarity_seq_to_ptrs(seq_data)
-                .map_err(|_| FuncResult::error(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
 
             // Grab our function to fold over.
@@ -322,10 +383,15 @@ pub fn define_fold_extref(mut store: impl AsContextMut<Data = ClarityWasmContext
 #[inline]
 pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Vec<FuncMap> {
     vec![
+        // `add` functions
         FuncMap::new("add_extref", define_add_extref(&mut store)),
-        FuncMap::new("native_add_i128", define_add_native_int128(&mut store)),
-        FuncMap::new("memory_add_i128", define_add_memory_int128(&mut store)),
+        FuncMap::new("add_native", define_add_native(&mut store)),
+        FuncMap::new("add_memory", define_add_memory(&mut store)),
+
+        // `mul` (multiplication) functions
         FuncMap::new("mul_extref", define_mul_extref(&mut store)),
+
+        // `fold` functions
         FuncMap::new("fold_extref", define_fold_extref(&mut store)),
         FuncMap::new("fold_memory", define_fold_memory(&mut store)),
     ]

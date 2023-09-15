@@ -10,6 +10,7 @@ pub mod compiler;
 pub mod runtime;
 pub mod serialization;
 
+use runtime::alloc::WasmAllocator;
 // Public exports
 pub use runtime::get_all_functions;
 
@@ -18,7 +19,15 @@ pub use runtime::get_all_functions;
 mod tests;
 
 #[derive(Debug, Copy, Clone)]
-pub struct ClarityWasmContext {}
+pub struct ClarityWasmContext {
+    pub alloc: WasmAllocator
+}
+
+impl ClarityWasmContext {
+    pub fn new() -> Self {
+        ClarityWasmContext { alloc: WasmAllocator::new() }
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct Ptr {

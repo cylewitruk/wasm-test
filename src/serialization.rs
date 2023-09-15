@@ -46,6 +46,14 @@ pub enum TypeIndicator {
     Tuple = 13,
 }
 
+impl TypeIndicator {
+    /// Returns whether or not this type is an integer type.
+    pub fn is_integer(&self) -> bool {
+        self == &TypeIndicator::Int
+        || self == &TypeIndicator::UInt
+    }
+}
+
 /// Gets the type indicator value for the provided `Value`. This indicator is used to
 /// prefix serialized values so that the type can be known during deserialization, especially
 /// in the cases where multiple possible types are allowed in a `TypeSignature`.
@@ -80,6 +88,11 @@ fn type_indicator_byte_to_type_indicator(
         Some(i) => Ok(i),
         None => Err(SerializationError::InvalidTypeIndicator(indicator))?,
     }
+}
+
+#[inline]
+pub fn get_type_indicator_from_serialized_value(data: &[u8]) -> Result<TypeIndicator, SerializationError> {
+    type_indicator_byte_to_type_indicator(data[0])
 }
 
 /// Deserializes a clarity sequence value (buffer, ascii, utf8, list, etc.) to a list of
