@@ -1,6 +1,4 @@
 use clarity::vm::{ClarityName, SymbolicExpression, Value};
-use walrus::{ElementKind, InitExpr, ValType};
-use wasmtime::ExternRef;
 
 use super::{wasm_generator::WasmGenerator, WasmGenerationResult};
 

@@ -43,7 +43,7 @@ impl WasmGenerator {
     pub fn generate(&mut self, contract_analysis: ContractAnalysis) -> WasmGenerationResult {
         // Traverse and visit all of the expressions from the provided `ContractAnalysis`.
         for expr in contract_analysis.expressions.iter() {
-            self.traverse_expr(&expr)?
+            self.traverse_expr(expr)?
         }
 
         Ok(())
@@ -65,7 +65,7 @@ impl WasmGenerator {
         let fn_params = params.iter().map(|x| x.val_type).collect::<Vec<ValType>>();
 
         // Initialize a new function builder.
-        let function_builder = FunctionBuilder::new(&mut self.module.types, &fn_params, &results);
+        let function_builder = FunctionBuilder::new(&mut self.module.types, &fn_params, results);
 
         let current_fn = WasmFunctionContext {
             id: function_builder.func_body_id(),

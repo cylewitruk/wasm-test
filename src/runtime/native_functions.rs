@@ -3,8 +3,6 @@
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
-use std::io::Read;
-
 use crate::ClarityWasmContext;
 use clarity::vm::{
     types::{CharType, SequenceData},
@@ -80,30 +78,26 @@ pub fn define_add_native_int128(mut store: impl AsContextMut) -> Func {
 }
 
 #[inline]
-pub fn define_add_native_int128_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_add_memory_int128(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, ClarityWasmContext>,
-        ptr: i32| -> i32 {
-            let memory = caller
-                .get_export("vm_mem")
-                .unwrap()
-                .into_memory()
-                .unwrap();
+        |mut caller: Caller<'_, ClarityWasmContext>, ptr: i32| -> i32 {
+            let memory = caller.get_export("vm_mem").unwrap().into_memory().unwrap();
 
             let mut buffer: [u8; 32] = [0; 32];
-            memory.read(&caller.as_context(), ptr as usize, &mut buffer)
+            memory
+                .read(&caller.as_context(), ptr as usize, &mut buffer)
                 .expect("Failed to read memory for ptr.");
 
-            let (a_buf, b_buf) = buffer.split_at(16);
-            let a_buf: [u8; 16] = a_buf.try_into().expect("a_buf is wrong size");
-            let b_buf: [u8; 16] = b_buf.try_into().expect("b_buf is wrong size");
+            let a_buf: [u8; 16] = buffer[0..16].try_into().expect("a_buf is wrong size");
+            let b_buf: [u8; 16] = buffer[16..32].try_into().expect("b_buf is wrong size");
             let a = i128::from_le_bytes(a_buf);
             let b = i128::from_le_bytes(b_buf);
 
             let result = a.checked_add(b).expect("Failed to add two i128's");
             let result = result.to_le_bytes();
-            memory.write(caller.as_context_mut(), 32, &result)
+            memory
+                .write(caller.as_context_mut(), 32, &result)
                 .expect("Couldn't write result to memory");
             32
         },
@@ -143,6 +137,17 @@ pub fn define_mul(mut store: impl AsContextMut) -> Func {
 
         Ok(result)
     })
+}
+
+#[inline]
+pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+    Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, ClarityWasmContext>,
+         func: Option<Func>,
+         seq: Option<ExternRef>,
+         init: Option<ExternRef>| { Ok(()) },
+    )
 }
 
 /// Defines the `fold` function.
@@ -189,7 +194,7 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
                 }
                 Value::Sequence(SequenceData::Buffer(buff)) => {
                     let result = buff.data.iter().fold(init, |acc, val| {
-                        let val_ref = Some(ExternRef::new(val.clone()));
+                        let val_ref = Some(ExternRef::new(*val));
                         func.call(
                             &mut caller,
                             &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))],
@@ -206,7 +211,7 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
                     match char_type {
                         CharType::ASCII(str) => {
                             let result = str.data.iter().fold(init, |acc, val| {
-                                let val_ref = Some(ExternRef::new(val.clone()));
+                                let val_ref = Some(ExternRef::new(*val));
                                 func.call(
                                     &mut caller,
                                     &[Val::ExternRef(val_ref), Val::ExternRef(Some(acc))],
@@ -247,22 +252,15 @@ pub fn define_fold(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> F
 
 #[inline]
 pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Vec<FuncMap> {
-    let mut funcs = Vec::<FuncMap>::new();
-
-    // NOTE: `ExternRef`s and `FuncRef`s must be passed as `Option`s in Wasmtime to be properly
-    // type converted by the runtime.
-
-    funcs.push(FuncMap::new("add", define_add(&mut store)));
-    funcs.push(FuncMap::new(
-        "native_add_i128",
-        define_add_native_int128(&mut store),
-    ));
-    funcs.push(FuncMap::new(
-        "native_add_i128_memory",
-        define_add_native_int128_memory(&mut store),
-    ));
-    funcs.push(FuncMap::new("mul", define_mul(&mut store)));
-    funcs.push(FuncMap::new("fold", define_fold(&mut store)));
-
-    funcs
+    vec![
+        FuncMap::new("add", define_add(&mut store)),
+        FuncMap::new(
+            "native_add_i128",
+            define_add_native_int128(&mut store)),
+        FuncMap::new(
+            "memory_add_i128",
+            define_add_memory_int128(&mut store)),
+        FuncMap::new("mul", define_mul(&mut store)),
+        FuncMap::new("fold", define_fold(&mut store))
+    ]
 }

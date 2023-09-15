@@ -12,7 +12,7 @@ impl WasmGenerator {
     /// Traverses the provided expression. recursively.
     pub(crate) fn traverse_expr(&mut self, expr: &SymbolicExpression) -> WasmGenerationResult {
         match &expr.expr {
-            SymbolicExpressionType::List(expressions) => self.traverse_list(expr, &*expressions)?,
+            SymbolicExpressionType::List(expressions) => self.traverse_list(expr, expressions)?,
             SymbolicExpressionType::Atom(clarity_name) => {
                 println!("==> traverse_expr(Atom): {}", clarity_name);
                 todo!()
@@ -159,11 +159,7 @@ impl WasmGenerator {
 
         // Once the body traversal is finished, we can end the function. If this is a `public` function,
         // then we also need to export it from the module.
-        self.end_function(if function == DefineFunctions::PublicFunction {
-            true
-        } else {
-            false
-        });
+        self.end_function(function == DefineFunctions::PublicFunction);
 
         Ok(())
     }

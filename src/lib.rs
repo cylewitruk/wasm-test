@@ -3,9 +3,12 @@
 //#[global_allocator]
 //static GLOBAL: MiMalloc = MiMalloc;
 
+// Private modules
+
 // Public modules
 pub mod compiler;
 pub mod runtime;
+pub mod serialization;
 
 // Public exports
 pub use runtime::get_all_functions;

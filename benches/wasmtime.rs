@@ -16,9 +16,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     Engine::tls_eager_initialize();
 
     // Initialize the wasmtime engine.
-    let engine = Engine::new(&config)
-        .expect("Failed to initialize engine");
-    
+    let engine = Engine::new(&config).expect("Failed to initialize engine");
+
     // Pre-compile the module.
     let precompiled = engine
         .precompile_module(&wasm_bytes)
@@ -136,19 +135,16 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         // Define our output parameters. Note that we're using `Option`s as stated above.
         let results = &mut [Val::I32(0)];
 
-        let mem = instance.get_memory(&mut store, "vm_mem")
-                .expect("Failed to find 'vm_mem'.");
+        let mem = instance
+            .get_memory(&mut store, "vm_mem")
+            .expect("Failed to find 'vm_mem'.");
 
         mem.write(&mut store, 0, &[0; 32])
             .expect("Couldn't write memory");
 
         b.iter(|| {
             instance_fn
-                .call(
-                    &mut store,
-                    &[Val::I32(0)],
-                    results,
-                )
+                .call(&mut store, &[Val::I32(0)], results)
                 .expect("Failed to call function")
         });
 
@@ -161,7 +157,7 @@ criterion_main!(benches);
 
 #[inline]
 pub fn generate_wasm() -> Vec<u8> {
-    use walrus::{FunctionBuilder, Module, ModuleConfig, ValType, Export, ExportItem};
+    use walrus::{Export, ExportItem, FunctionBuilder, Module, ModuleConfig, ValType};
 
     // Construct a new Walrus module.
     let config = ModuleConfig::new();
@@ -183,10 +179,7 @@ pub fn generate_wasm() -> Vec<u8> {
         module.add_import_func("clarity", "native_add_i128", native_add_i128_ty);
 
     // Import the API definition for `memory_add_i128`.
-    let memory_add_i128_ty = module.types.add(
-        &[ValType::I32],
-        &[ValType::I32],
-    );
+    let memory_add_i128_ty = module.types.add(&[ValType::I32], &[ValType::I32]);
     let (memory_add_i128_id, _) =
         module.add_import_func("clarity", "memory_add_i128", memory_add_i128_ty);
 
@@ -312,8 +305,7 @@ pub fn generate_wasm() -> Vec<u8> {
         .local_get(ptr)
         .call(memory_add_i128_id);
 
-    let memory_add_i128_fn =
-        memory_add_i128.finish(vec![ptr], &mut module.funcs);
+    let memory_add_i128_fn = memory_add_i128.finish(vec![ptr], &mut module.funcs);
     module.exports.add("memory_add_i128", memory_add_i128_fn);
     // ////////////////////////////////////////////////////////////////////////////////
 

@@ -55,9 +55,7 @@ impl DiagnosableError for WasmGenerationError {
         match self {
             WasmGenerationError::NotImplemented => "Not implemented".to_string(),
             WasmGenerationError::InternalError(msg) => format!("Internal error: {}", msg),
-            WasmGenerationError::EmptyListTraversal => {
-                format!("Attempted to traverse an empty list")
-            }
+            WasmGenerationError::EmptyListTraversal => "Attempted to traverse an empty list".to_string(),
             WasmGenerationError::UnknownFunction(name) => format!("Unknown function: {}", name),
         }
     }
@@ -188,7 +186,7 @@ pub fn compile(contract_analysis: &ContractAnalysis) -> Result<CompileResult, Co
 
     generator
         .generate(contract_analysis.clone())
-        .map_err(|e| CompileError::Wasm(e))?;
+        .map_err(CompileError::Wasm)?;
 
     let module_bytes = generator.finalize();
 

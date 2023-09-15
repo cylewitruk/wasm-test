@@ -1,11 +1,11 @@
-use mimalloc::MiMalloc;
 use criterion::{criterion_group, criterion_main, Criterion};
+use mimalloc::MiMalloc;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     use clarity::vm::Value as ClarityValue;
     use wasmer::{
-        imports, ExternRef, Function, FunctionEnv, FunctionEnvMut, Instance, Module,
-        Store, TypedFunction, Features, Engine
+        imports, Engine, ExternRef, Features, Function, FunctionEnv, FunctionEnvMut, Instance,
+        Module, Store, TypedFunction,
     };
     use wasmer_compiler_llvm::LLVM;
 
@@ -29,7 +29,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let mut store = Store::new(compiler);
     //let engine = Engine::default();
     //let mut store = Store::new(engine);
-
 
     // Create a new environment.
     let env = FunctionEnv::new(&mut store, ());
@@ -104,10 +103,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // Bench `add`
     c.bench_function("add", |b| {
         let instance_fn: TypedFunction<(Option<ExternRef>, Option<ExternRef>), Option<ExternRef>> =
-        instance
-            .exports
-            .get_typed_function(&store, "top_level")
-            .expect("Failed to get fn");
+            instance
+                .exports
+                .get_typed_function(&store, "top_level")
+                .expect("Failed to get fn");
 
         b.iter(|| {
             let a1 = ExternRef::new(&mut store, ClarityValue::Int(1));
@@ -121,8 +120,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     // Bench `add`
     c.bench_function("native_add_i128", |b| {
-        let instance_fn: TypedFunction<(i64, i64, i64, i64), (i64, i64)> =
-        instance
+        let instance_fn: TypedFunction<(i64, i64, i64, i64), (i64, i64)> = instance
             .exports
             .get_typed_function(&store, "native_add_i128")
             .expect("Failed to get fn");
