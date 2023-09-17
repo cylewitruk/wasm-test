@@ -35,6 +35,8 @@ trait GetImportedFunctionByName {
     fn get_by_name(&self, name: &str) -> Option<WasmFunctionMapping>;
 }
 
+/// Implement the `GetImportedFunctionByName` for slices of
+/// `WasmFunctionMapping`.
 impl GetImportedFunctionByName for &[WasmFunctionMapping] {
     fn get_by_name(&self, name: &str) -> Option<WasmFunctionMapping> {
         for func in self.iter() {
@@ -192,18 +194,22 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         // Define our output parameters. Note that we're using `Option`s as stated above.
         let results = &mut [Val::I32(0), Val::I32(0), Val::I32(0)];
 
+        // Retrieve the Wasm memory.
         let mem = instance
             .get_memory(&mut store, "vm_mem")
             .expect("Failed to find 'vm_mem'.");
 
+        // Define the two Clarity values we want to add.
         let a_val = Value::Int(5);
         let b_val = Value::Int(11);
 
+        // Serialize the two values we want to add to their byte-representations.
         let a_bytes = serialize_clarity_value(&a_val)
             .expect("Failed to serialize 'a'");
         let b_bytes = serialize_clarity_value(&b_val)
             .expect("Failed to serialize 'b'");
 
+        // Get pointers to both a and b slices.
         let a_ptr = store.data_mut().alloc.alloc_for_buffer(&a_bytes);
         let b_ptr = store.data_mut().alloc.alloc_for_buffer(&b_bytes);
 

@@ -160,13 +160,16 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
                 }
             }
 
+            // Retrieve a memory ptr for the result.
             let alloc = caller.data_mut().alloc.alloc_for_buffer(&result);
 
+            // Write the result to memory
             memory.write(&mut caller, alloc.offset as usize, &result)
                 .map_err(|_| FuncResult::err(RuntimeError::FailedToWriteResultToMemory))
                 .unwrap();
 
-            (0, 0, 0)
+            // Return
+            FuncResult::ok(alloc)
         },
     )
 }
