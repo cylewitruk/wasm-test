@@ -1,9 +1,9 @@
 #![no_std]
 #![feature(alloc_error_handler)]
 
-use core::cell::UnsafeCell;
-use core::alloc::Layout;
 use core::alloc::GlobalAlloc;
+use core::alloc::Layout;
+use core::cell::UnsafeCell;
 
 #[panic_handler]
 fn panic(_panic: &core::panic::PanicInfo<'_>) -> ! {
