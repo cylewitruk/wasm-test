@@ -1,0 +1,41 @@
+[package]
+name = "wasm_test"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "./src/lib.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+walrus = "0.20.1"
+wasmtime = "12.0.1"
+clarity-vm = { version = "2" }
+lazy_static = "1.4.0"
+wasmer =  { version = "4.2.0", features = ["wasmer-compiler-llvm"] }
+wasmer-compiler-llvm = "4.2.0"
+mimalloc = { version = "*", default-features = false }
+bv = "0.11.1"
+num = "0.4.1"
+num-derive = "0.4.0"
+num-traits = "0.2.16"
+
+[dev-dependencies]
+criterion = "0.5.1"
+rusqlite = "0.27.0"
+test-case = "3.1.0"
+sha2 = "0.10.7"
+chrono = "0.4.30"
+
+[[bench]]
+name = "wasmtime"
+harness = false
+
+[[bench]]
+name = "wasmer"
+harness = false
+
+[[bench]]
+name = "serialization"
+harness = false

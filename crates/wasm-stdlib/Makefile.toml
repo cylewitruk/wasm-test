@@ -1,0 +1,27 @@
+[tasks.build]
+clear = true
+dependencies = [
+    "cargo-build",
+    "llvm-strip",
+    "wasm-opt"
+]
+
+[tasks.cargo-build]
+script = "cargo +nightly build --target=wasm32-unknown-unknown --release -Z build-std=core"
+
+[tasks.pwd]
+command = "pwd"
+
+[tasks.llvm-strip]
+command = "llvm-strip"
+args = [
+    "--keep-section=name", 
+    "../../target/wasm32-unknown-unknown/release/wasm_stdlib.wasm"
+    ]
+
+[tasks.wasm-opt]
+command = "wasm-opt"
+args = [
+    "-O3", 
+    "-o", "../../target/wasm32-unknown-unknown/release/wasm_stdlib.wasm", 
+    "../../target/wasm32-unknown-unknown/release/wasm_stdlib.wasm"]

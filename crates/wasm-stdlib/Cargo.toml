@@ -1,0 +1,15 @@
+[package]
+name = "wasm_stdlib"
+version = "0.0.0"  #:version
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+path = "./src/lib.rs"
+
+[profile.release]
+lto = true
+
+[dev-dependencies]
+cargo-make = "0.37.1"
+getrandom = { version = "0.2", features = ["js"] }
