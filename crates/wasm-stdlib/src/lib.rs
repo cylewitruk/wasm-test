@@ -24,15 +24,51 @@ pub extern "C" fn add_int128(a_lo: i64, a_hi: i64, b_lo: i64, b_hi: i64) -> (i64
     let a = ((a_lo as u64) as u128) | ((a_hi as u64) as u128) << 64;
     let b = ((b_lo as u64) as u128) | ((b_hi as u64) as u128) << 64;
 
-    let result = a + b;
-    if result > i128::MAX as u128 {
-        return (-1, -1);
+    match a.checked_add(b) {
+        Some(result) => {
+            let result: i128 = result.try_into()
+                .unwrap_or_else(|_| core::arch::wasm32::unreachable());
+            (
+                (result & 0xFFFFFFFFFFFFFFFF) as i64,
+                ((result >> 64) & 0xFFFFFFFFFFFFFFFF) as i64,
+            )
+        },
+        _ => core::arch::wasm32::unreachable()
     }
+}
 
-    (
-        (result & 0xFFFFFFFFFFFFFFFF) as i64,
-        ((result >> 64) & 0xFFFFFFFFFFFFFFFF) as i64,
-    )
+#[no_mangle]
+#[export_name = "add-unt128"]
+pub extern "C" fn add_uint128(a_lo: i64, a_hi: i64, b_lo: i64, b_hi: i64) -> (i64, i64) {
+    let a = ((a_lo as u64) as u128) | ((a_hi as u64) as u128) << 64;
+    let b = ((b_lo as u64) as u128) | ((b_hi as u64) as u128) << 64;
+
+    match a.checked_add(b) {
+        Some(result) => {
+            (
+                (result & 0xFFFFFFFFFFFFFFFF) as i64,
+                ((result >> 64) & 0xFFFFFFFFFFFFFFFF) as i64,
+            )
+        },
+        _ => core::arch::wasm32::unreachable()
+    }
+}
+
+#[no_mangle]
+#[export_name = "mul-uint128"]
+pub extern "C" fn mul_uint128(a_lo: i64, a_hi: i64, b_lo: i64, b_hi: i64) -> (i64, i64) {
+    let a = ((a_lo as u64) as u128) | ((a_hi as u64) as u128) << 64;
+    let b = ((b_lo as u64) as u128) | ((b_hi as u64) as u128) << 64;
+
+    match a.checked_mul(b) {
+        Some(result) => {
+            (
+                (result & 0xFFFFFFFFFFFFFFFF) as i64,
+                ((result >> 64) & 0xFFFFFFFFFFFFFFFF) as i64,
+            )
+        },
+        _ => core::arch::wasm32::unreachable()
+    }
 }
 
 const ARENA_SIZE: usize = 128 * 1024;

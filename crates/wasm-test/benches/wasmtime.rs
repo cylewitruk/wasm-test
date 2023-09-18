@@ -56,7 +56,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // Initialize config which allows for reference types.
     let mut config = Config::new();
     config.wasm_reference_types(true);
-    config.wasm_threads(true);
 
     Engine::tls_eager_initialize();
 
