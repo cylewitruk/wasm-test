@@ -20,12 +20,14 @@ mod tests;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ClarityWasmContext {
-    pub alloc: WasmAllocator
+    pub alloc: WasmAllocator,
 }
 
 impl ClarityWasmContext {
     pub fn new() -> Self {
-        ClarityWasmContext { alloc: WasmAllocator::new() }
+        ClarityWasmContext {
+            alloc: WasmAllocator::new(),
+        }
     }
 }
 

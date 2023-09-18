@@ -49,8 +49,7 @@ pub enum TypeIndicator {
 impl TypeIndicator {
     /// Returns whether or not this type is an integer type.
     pub fn is_integer(&self) -> bool {
-        self == &TypeIndicator::Int
-        || self == &TypeIndicator::UInt
+        self == &TypeIndicator::Int || self == &TypeIndicator::UInt
     }
 }
 
@@ -91,7 +90,9 @@ fn type_indicator_byte_to_type_indicator(
 }
 
 #[inline]
-pub fn get_type_indicator_from_serialized_value(data: &[u8]) -> Result<TypeIndicator, SerializationError> {
+pub fn get_type_indicator_from_serialized_value(
+    data: &[u8],
+) -> Result<TypeIndicator, SerializationError> {
     type_indicator_byte_to_type_indicator(data[0])
 }
 

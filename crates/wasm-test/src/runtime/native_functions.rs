@@ -5,9 +5,8 @@
 
 use crate::runtime::FuncResultTrait;
 use crate::serialization::{
-    deserialize_clarity_seq_to_ptrs, deserialize_clarity_value, serialize_clarity_value,
-    get_type_indicator_from_serialized_value,
-    TypeIndicator
+    deserialize_clarity_seq_to_ptrs, deserialize_clarity_value,
+    get_type_indicator_from_serialized_value, serialize_clarity_value, TypeIndicator,
 };
 use crate::ClarityWasmContext;
 use clarity::vm::{
@@ -94,14 +93,19 @@ pub fn define_add_native(mut store: impl AsContextMut) -> Func {
 pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, a_len: i32, b_ptr: i32, b_len: i32| -> FuncResult {
+        |mut caller: Caller<'_, ClarityWasmContext>,
+         a_ptr: i32,
+         a_len: i32,
+         b_ptr: i32,
+         b_len: i32|
+         -> FuncResult {
             // Retrieve an instance of the `vm_mem` exported memory.
             let memory = caller.get_export("vm_mem").unwrap().into_memory().unwrap();
             // Get a handle to a slice representing the in-memory data.
             let data = memory.data(&caller);
 
             // Fetch the bytes for `a` from memory.
-            let a_bytes: [u8; 16] = data[(a_ptr+3) as usize..(a_ptr+3 + a_len-3) as usize]
+            let a_bytes: [u8; 16] = data[(a_ptr + 3) as usize..(a_ptr + 3 + a_len - 3) as usize]
                 .try_into()
                 .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
@@ -117,7 +121,7 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
             }
 
             // Fetch the bytes for `b` from memory.
-            let b_bytes: [u8; 16] = data[b_ptr as usize..(b_ptr+3 + b_len-3) as usize]
+            let b_bytes: [u8; 16] = data[b_ptr as usize..(b_ptr + 3 + b_len - 3) as usize]
                 .try_into()
                 .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
@@ -164,7 +168,8 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
             let alloc = caller.data_mut().alloc.alloc_for_buffer(&result);
 
             // Write the result to memory
-            memory.write(&mut caller, alloc.offset as usize, &result)
+            memory
+                .write(&mut caller, alloc.offset as usize, &result)
                 .map_err(|_| FuncResult::err(RuntimeError::FailedToWriteResultToMemory))
                 .unwrap();
 
@@ -390,10 +395,8 @@ pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>
         FuncMap::new("add_extref", define_add_extref(&mut store)),
         FuncMap::new("add_native", define_add_native(&mut store)),
         FuncMap::new("add_memory", define_add_memory(&mut store)),
-
         // `mul` (multiplication) functions
         FuncMap::new("mul_extref", define_mul_extref(&mut store)),
-
         // `fold` functions
         FuncMap::new("fold_extref", define_fold_extref(&mut store)),
         FuncMap::new("fold_memory", define_fold_memory(&mut store)),

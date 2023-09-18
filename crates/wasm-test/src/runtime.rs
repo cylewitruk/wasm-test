@@ -17,7 +17,7 @@ pub enum RuntimeError {
     FunctionOnlySupportsIntegralValues = 4,
     ArgumentTypeMismatch = 5,
     ArithmeticOverflow = 6,
-    FailedToWriteResultToMemory = 7
+    FailedToWriteResultToMemory = 7,
 }
 
 pub type FuncResult = (i32, i32, i32);
