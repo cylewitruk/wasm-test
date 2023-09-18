@@ -22,7 +22,6 @@ static ALLOCATOR: SimpleAllocator = SimpleAllocator::new();
 #[export_name = "add-int128"]
 pub extern "C" fn add_int128(a_lo: i64, a_hi: i64, b_lo: i64, b_hi: i64) -> (i64, i64) {
     let a = ((a_lo as u64) as u128) | ((a_hi as u64) as u128) << 64;
-
     let b = ((b_lo as u64) as u128) | ((b_hi as u64) as u128) << 64;
 
     let result = a + b;

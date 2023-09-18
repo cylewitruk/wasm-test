@@ -20,7 +20,6 @@ The following Rust code:
 #[export_name = "add-int128"]
 pub extern "C" fn add_int128(a_lo: i64, a_hi: i64, b_lo: i64, b_hi: i64) -> (i64, i64) {
     let a = ((a_lo as u64) as u128) | ((a_hi as u64) as u128) << 64;
-
     let b = ((b_lo as u64) as u128) | ((b_hi as u64) as u128) << 64;
 
     let result = a + b;
@@ -38,35 +37,31 @@ pub extern "C" fn add_int128(a_lo: i64, a_hi: i64, b_lo: i64, b_hi: i64) -> (i64
 Compiles to the following WAT:
 ```wasm
 (module
-  (type (;0;) (func (param i32 i64 i64 i64 i64)))
-  (func (;0;) (type 0) (param i32 i64 i64 i64 i64)
+  (type (;0;) (func (param i64 i64 i64 i64) (result i64 i64)))
+  (func (;0;) (type 0) (param i64 i64 i64 i64) (result i64 i64)
     (local i32)
-    local.get 0
-    i64.const -1
-    local.get 2
-    local.get 1
-    local.get 1
-    local.get 3
-    i64.add
-    local.tee 1
-    i64.gt_u
-    i64.extend_i32_u
-    i64.add
-    local.get 4
-    i64.add
-    local.tee 2
-    local.get 2
-    i64.const 0
-    i64.lt_s
-    local.tee 5
-    select
-    i64.store offset=8
-    local.get 0
-    i64.const -1
-    local.get 1
-    local.get 5
-    select
-    i64.store)
+    (select
+      (i64.const -1)
+      (local.tee 2
+        (i64.add
+          (local.get 0)
+          (local.get 2)))
+      (local.tee 4
+        (i64.lt_s
+          (local.tee 0
+            (i64.add
+              (i64.add
+                (local.get 1)
+                (i64.extend_i32_u
+                  (i64.gt_u
+                    (local.get 0)
+                    (local.get 2))))
+              (local.get 3)))
+          (i64.const 0))))
+    (select
+      (i64.const -1)
+      (local.get 0)
+      (local.get 4)))
   (memory (;0;) 16)
   (global (;0;) i32 (i32.const 1048576))
   (global (;1;) i32 (i32.const 1048576))

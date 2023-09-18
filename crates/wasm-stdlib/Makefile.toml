@@ -3,10 +3,12 @@ clear = true
 dependencies = [
     "cargo-build",
     "llvm-strip",
-    "wasm-opt"
+    "wasm-opt",
+    "wasm2wat"
 ]
 
 [tasks.cargo-build]
+env = { "RUSTFLAGS" = "-C target-feature=+multivalue"}
 script = "cargo +nightly build --target=wasm32-unknown-unknown --release -Z build-std=core"
 
 [tasks.pwd]
@@ -25,3 +27,11 @@ args = [
     "-O3", 
     "-o", "../../target/wasm32-unknown-unknown/release/wasm_stdlib.wasm", 
     "../../target/wasm32-unknown-unknown/release/wasm_stdlib.wasm"]
+
+[tasks.wasm2wat]
+command = "wasm2wat"
+args = [
+    "../../target/wasm32-unknown-unknown/release/wasm_stdlib.wasm",
+    "-f",
+    "-o", "../../target/wasm32-unknown-unknown/release/wasm_stdlib.wat"
+]
