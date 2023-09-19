@@ -10,6 +10,8 @@ use num_derive::{FromPrimitive, ToPrimitive};
 
 use crate::Ptr;
 
+pub const HEADER_LEN: i32 = 3;
+
 #[derive(Debug, Clone, Copy)]
 pub enum SerializationError {
     IndexOutOfRange,

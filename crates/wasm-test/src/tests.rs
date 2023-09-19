@@ -1,4 +1,4 @@
 mod compiler;
 mod datastore;
-mod native_functions;
+mod runtime;
 mod serialization;

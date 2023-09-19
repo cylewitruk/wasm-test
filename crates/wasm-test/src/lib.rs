@@ -31,7 +31,7 @@ impl ClarityWasmContext {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Ptr {
     pub offset: i32,
     pub len: i32,
@@ -40,5 +40,20 @@ pub struct Ptr {
 impl Ptr {
     pub fn new(offset: i32, len: i32) -> Self {
         Ptr { offset, len }
+    }
+
+    pub fn new_uint(offset: u32, len: u32) -> Self {
+        Ptr { 
+            offset: offset as i32,
+            len: len as i32
+        }
+    }
+
+    pub(crate) fn set_offset(&mut self, offset: i32) {
+        self.offset = offset;
+    }
+
+    pub(crate) fn set_len(&mut self, len: i32) {
+        self.len = len;
     }
 }
