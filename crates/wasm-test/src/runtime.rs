@@ -27,7 +27,7 @@ pub trait FuncResultTrait {
         (error as i32, 0, 0)
     }
     fn ok(ptr: Ptr) -> FuncResult {
-        (0, ptr.offset, ptr.len)
+        (0, ptr.offset_i32(), ptr.len_i32())
     }
     fn is_success(&self) -> bool;
     fn get_error(&self) -> RuntimeError;

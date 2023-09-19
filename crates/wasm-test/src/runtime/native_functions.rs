@@ -6,8 +6,7 @@
 use crate::runtime::FuncResultTrait;
 use crate::serialization::{
     deserialize_clarity_seq_to_ptrs, deserialize_clarity_value,
-    get_type_indicator_from_serialized_value, serialize_clarity_value, TypeIndicator,
-    HEADER_LEN
+    get_type_indicator_from_serialized_value, serialize_clarity_value, TypeIndicator, HEADER_LEN,
 };
 use crate::ClarityWasmContext;
 use clarity::vm::{
@@ -106,7 +105,8 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
             let data = memory.data(&caller);
 
             // Fetch the bytes for `a` from memory.
-            let a_bytes: [u8; 16] = data[(a_ptr + HEADER_LEN) as usize..(a_ptr + a_len - HEADER_LEN) as usize]
+            let a_bytes: [u8; 16] = data
+                [(a_ptr + HEADER_LEN) as usize..(a_ptr + a_len - HEADER_LEN) as usize]
                 .try_into()
                 .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
@@ -122,7 +122,8 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
             }
 
             // Fetch the bytes for `b` from memory.
-            let b_bytes: [u8; 16] = data[(b_ptr + HEADER_LEN) as usize..(b_ptr + b_len - HEADER_LEN) as usize]
+            let b_bytes: [u8; 16] = data
+                [(b_ptr + HEADER_LEN) as usize..(b_ptr + b_len - HEADER_LEN) as usize]
                 .try_into()
                 .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
@@ -260,8 +261,8 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
                     func.call(
                         &mut caller,
                         &[
-                            Val::I32(ptr.offset),
-                            Val::I32(ptr.len),
+                            Val::I32(ptr.offset_i32()),
+                            Val::I32(ptr.len_i32()),
                             Val::I32(init_ptr),
                             Val::I32(init_len),
                         ],
@@ -273,8 +274,8 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
                     func.call(
                         &mut caller,
                         &[
-                            Val::I32(ptr.offset),
-                            Val::I32(ptr.len),
+                            Val::I32(ptr.offset_i32()),
+                            Val::I32(ptr.len_i32()),
                             result[1].clone(),
                             result[2].clone(),
                         ],

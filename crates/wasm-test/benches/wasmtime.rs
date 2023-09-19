@@ -220,10 +220,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 .call(
                     &mut store,
                     &[
-                        Val::I32(a_ptr.offset),
-                        Val::I32(a_ptr.len),
-                        Val::I32(b_ptr.offset),
-                        Val::I32(b_ptr.len),
+                        Val::I32(a_ptr.offset_i32()),
+                        Val::I32(a_ptr.len_i32()),
+                        Val::I32(b_ptr.offset_i32()),
+                        Val::I32(b_ptr.len_i32()),
                     ],
                     results,
                 )

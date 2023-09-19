@@ -156,7 +156,7 @@ pub fn deserialize_clarity_seq_to_ptrs(buffer: &[u8]) -> Result<Vec<Ptr>, Serial
                 .map_err(|_| SerializationError::FailedToDeserializeLengthIndicator)?,
         ) as usize;
 
-        ptrs.push(Ptr::new(index as i32, value_len as i32));
+        ptrs.push(Ptr::new(index as u32, value_len as u32));
         index += value_len + 3;
     }
 

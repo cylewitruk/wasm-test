@@ -12,12 +12,11 @@ criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-
     // ================================================================================
     // `uint` serialization
     // ================================================================================
     let mut uint_group = c.benchmark_group("uint");
-    
+
     uint_group.bench_function("uint-serialize", |b| {
         let value = Value::UInt(u128::MAX);
 
@@ -297,7 +296,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             deserialize_clarity_value(&serialized).expect("Failed to deserialize value");
         })
     });
-
 
     // List with five unsigned integer values.
     list_group.bench_function("list-5-uints-serialize", |b| {
