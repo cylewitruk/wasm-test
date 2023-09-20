@@ -41,20 +41,30 @@ const MIN_BLOCK_SIZE: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WrappedPtr {
-    id: u32,
-    ptr: Ptr,
+    pub(crate) id: u32,
+    pub(crate) size: u32,
+    pub(crate) ptr: Ptr,
 }
 
 impl WrappedPtr {
-    pub fn new(id: u32, offset: u32, len: u32) -> Self {
+    pub(crate) fn new(id: u32, offset: u32, len: u32) -> Self {
         WrappedPtr {
             id,
             ptr: Ptr::new(offset, len),
+            size: len
         }
     }
 
-    pub fn from_ptr(id: u32, ptr: Ptr) -> Self {
-        WrappedPtr { id, ptr }
+    pub(crate) fn from_ptr(id: u32, ptr: Ptr) -> Self {
+        WrappedPtr { 
+            id, 
+            ptr, 
+            size: ptr.len
+        }
+    }
+
+    pub(crate) fn set_size(&mut self, size: u32) {
+        self.size = size;
     }
 }
 
@@ -75,7 +85,7 @@ impl DerefMut for WrappedPtr {
 pub struct WasmAllocator2 {
     size: u32,
     free_lists: Vec<Vec<WrappedPtr>>,
-    allocations: HashMap<u32, u32>,
+    allocations: HashMap<u32, WrappedPtr>,
     next_ptr_id: u32,
     disposed_ptr_ids: Vec<u32>,
 }
@@ -142,7 +152,7 @@ impl WasmAllocator2 {
     /// deterministic and does not depend on what's already been allocated. In particular,
     /// it's important to be able to calculate the same `allocation_size` when freeing
     /// memory as we did when allocating it.
-    pub fn allocation_size(&self, mut size: u32) -> Option<u32> {
+    pub(crate) fn allocation_size(&self, mut size: u32) -> Option<u32> {
         // We can't allocate blocks smaller than `MIN_BLOCK_SIZE`
         size = u32::max(size, MIN_BLOCK_SIZE);
 
@@ -160,24 +170,24 @@ impl WasmAllocator2 {
 
     /// The "order" of an allocation is how many times we need to double `MIN_BLOCK_SIZE`in
     /// order to get a large enough block, as well as the index we use into `free_lists`.
-    pub fn allocation_order(&self, size: u32) -> Option<u32> {
+    pub(crate) fn allocation_order(&self, size: u32) -> Option<u32> {
         self.allocation_size(size)
             .map(|s| s.ilog2() - MIN_BLOCK_SIZE.ilog2())
     }
 
     /// The size of the blocks we allocate for a given order.
-    pub fn order_size(&self, order: u32) -> u32 {
+    pub(crate) fn order_size(&self, order: u32) -> u32 {
         1 << (MIN_BLOCK_SIZE.ilog2() + order)
     }
 
     /// Pop a block from the appropriate free list.
-    pub fn free_list_pop(&mut self, order: usize) -> Option<WrappedPtr> {
+    pub(crate) fn free_list_pop(&mut self, order: usize) -> Option<WrappedPtr> {
         let list = &mut self.free_lists[order];
         list.pop()
     }
 
     /// Insert `block` of order `order`onto the appropriate free list.
-    pub fn free_list_push(&mut self, order: usize, block: WrappedPtr) {
+    pub(crate) fn free_list_push(&mut self, order: usize, block: WrappedPtr) {
         let list = &mut self.free_lists[order];
         list.push(block);
     }
@@ -185,11 +195,11 @@ impl WasmAllocator2 {
     /// Removes the specified `block` in the provided `order` free_list. This is used during
     /// the splitting of blocks, to remove the larger block from the larger free_list (which
     /// gets replaced by two smaller blocks in a lower free_list).
-    pub fn free_list_remove(&mut self, order: usize, block: WrappedPtr) -> bool {
+    pub(crate) fn free_list_remove(&mut self, order: usize, block_id: u32) -> bool {
         let list = &mut self.free_lists[order];
 
         for i in 0..list.len() {
-            if list[i].id == block.id {
+            if list[i].id == block_id {
                 list.remove(i);
                 return true;
             }
@@ -200,7 +210,7 @@ impl WasmAllocator2 {
 
     /// Split a `block` of order `order` down into a block of order `order_needed`,
     /// placing any unused chunks on the free list.
-    pub fn split_free_block(&mut self, block: &mut WrappedPtr, mut order: u32, order_needed: u32) {
+    pub(crate) fn split_free_block(&mut self, block: &mut WrappedPtr, mut order: u32, order_needed: u32) {
         // Get the size of our starting block.
         let mut size_to_split = self.order_size(order);
 
@@ -208,16 +218,15 @@ impl WasmAllocator2 {
             size_to_split >>= 1;
             order -= 1;
 
-            block.set_len(size_to_split);
-            let new_block = self.new_wrapped_ptr(block.offset + size_to_split, size_to_split);
+            // Create a new block for the "upper" portion of the split and push it to the free-list.
+            let mut new_block = self.new_wrapped_ptr(block.offset + size_to_split, size_to_split);
+            new_block.set_size(size_to_split);
             self.free_list_push(order as usize, new_block);
 
-            println!(
-                "order_needed = {order_needed}; order = {order}; size_to_split = {size_to_split}"
-            );
+            // Update the current block's length and set its buddy-id to the new block.
+            block.set_len(size_to_split);
+            block.set_size(size_to_split);
         }
-
-        println!("{:?}", self.free_lists);
     }
 
     /// Allocate a block of memory large enough to contain `size` bytes.
@@ -235,8 +244,11 @@ impl WasmAllocator2 {
                         self.split_free_block(&mut block, order as u32, order_needed);
                     }
 
+                    block.set_len(size);
+                    block.set_size(self.allocation_size(size).unwrap());
                     // We have an allocation, so quite now.
-                    println!("block: {:?}", block);
+                    self.allocations.insert(block.offset, block);
+                    println!("allocation: {:?}", block);
                     return block;
                 }
             }
@@ -254,14 +266,56 @@ impl WasmAllocator2 {
         }
     }
 
-    pub fn buddy(&self, order: u32, block: WrappedPtr) -> Option<WrappedPtr> {
+    pub(crate) fn find_buddy(&self, order: u32, block: WrappedPtr) -> Option<WrappedPtr> {
         let size = self.order_size(order);
+        // The main memory allocator doesn't have a buddy.
         if size >= self.size {
             return None;
         } else {
-            return None;
+            let offset = block.id ^ size;
+            let list = &self.free_lists[order as usize];
+            for i in 0..list.len() {
+                if list[i].offset == offset {
+                    return Some(list[i]);
+                }
+            }
+            None
         }
+    }
 
-        todo!()
+    pub fn deallocate(&mut self, ptr: WrappedPtr) {
+        let initial_order = self.allocation_order(ptr.size)
+            .expect("Failed to discern order for pointer.");
+        
+        // Remove the allocation from the allocations table. Note that this is offset-based
+        // to help keep lookups fast together with the buddy system.
+        self.allocations.remove(&ptr.offset);
+
+        let mut block = ptr;
+        for order in initial_order..self.free_lists.len() as u32 {
+            let block_size = block.len;
+            if let Some(mut buddy) = self.find_buddy(order, block) {
+                if self.free_list_remove(order as usize, buddy.id) { // it's not the buddy id, it's the offset of the buddy..
+
+                    println!("block: {:?}", block);
+                    println!("buddy: {:?}", buddy);
+                    
+                    if block.offset < buddy.offset {
+                        block.set_len(block_size * 2);
+                        block.set_size(block_size * 2);
+                        self.disposed_ptr_ids.push(buddy.id);
+                    } else {
+                        buddy.set_len(block_size * 2);
+                        buddy.set_size(block_size * 2);
+                        self.disposed_ptr_ids.push(block.id);
+                        block = buddy;
+                    }
+                    continue;
+                }
+            }
+            
+            self.free_list_push(order as usize, block);
+            return;
+        }
     }
 }

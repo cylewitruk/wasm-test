@@ -76,9 +76,9 @@ fn test_free_list_remove() {
     alloc.free_list_push(3, block2);
     alloc.free_list_push(3, block3);
 
-    assert_eq!(false, alloc.free_list_remove(2, block1));
-    assert_eq!(false, alloc.free_list_remove(4, block3));
-    assert_eq!(true, alloc.free_list_remove(3, block2));
+    assert_eq!(false, alloc.free_list_remove(2, block1.id));
+    assert_eq!(false, alloc.free_list_remove(4, block3.id));
+    assert_eq!(true, alloc.free_list_remove(3, block2.id));
 }
 
 #[test]
@@ -95,4 +95,19 @@ fn test_allocate() {
 
     let mut block = alloc.allocate(8);
     println!("{:?}", block);
+
+    let buddy = alloc.find_buddy(0, block).expect("Failed to find buddy");
+    assert_eq!(5, buddy.id);
+}
+
+#[test]
+fn test_find_buddy() {
+    let mut alloc = WasmAllocator2::new(256);
+
+    let mut block = alloc.allocate(8);
+    println!("{:?}", block);
+
+    let buddy = alloc.find_buddy(0, block).expect("Failed to find buddy");
+    println!("buddy: {:?}", buddy);
+    alloc.deallocate(block);
 }
