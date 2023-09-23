@@ -87,20 +87,87 @@ impl ClarityWasmContext {
     }
 }*/
 
+#[derive(Debug, Clone)]
+pub struct ValuesContext {
+    owned_values: Vec<Option<Value>>,
+    tombstones: Vec<i32>
+}
+
+impl Default for ValuesContext {
+    fn default() -> Self {
+        Self { 
+            owned_values: Vec::<Option<Value>>::with_capacity(1000), 
+            tombstones: Vec::<i32>::with_capacity(1000)
+        }
+    }
+}
+
+impl ValuesContext {
+    pub fn push(&mut self, value: Value) -> i32 {
+        if let Some(idx) = self.tombstones.pop() {
+            self.owned_values[idx as usize] = Some(value);
+            idx
+        } else {
+            let idx = self.owned_values.len();
+            self.owned_values.push(Some(value));
+            idx as i32
+        }
+    }
+
+    pub fn take(&mut self, ptr: i32) -> Option<Value> {
+        let value = self.owned_values[ptr as usize].take();
+        value
+    }
+
+    pub fn borrow(&self, ptr: i32) -> Option<&Value> {
+        self.owned_values[ptr as usize].as_ref()
+    }
+
+    pub fn set(&mut self, ptr: i32, value: Value) {
+        self.owned_values[ptr as usize] = Some(value);
+    }
+
+    pub fn copy_into(&mut self, from_ptr: i32, to_ptr: i32) {
+        self.owned_values[to_ptr as usize] = self.owned_values[from_ptr as usize].clone();
+    }
+
+    pub fn new_ptr(&mut self) -> i32 {
+        if let Some(idx) = self.tombstones.pop() {
+            idx
+        } else {
+            let idx = self.owned_values.len();
+            self.owned_values.push(None);
+            idx as i32
+        }
+    }
+
+    pub fn drop(&mut self, ptr: i32) {
+        self.tombstones.push(ptr);
+        self.owned_values[ptr as usize] = None;
+
+    }
+
+    pub fn count(&self) -> usize {
+        self.owned_values.len()
+    }
+
+    pub fn clear(&mut self) {
+        self.owned_values.clear();
+        self.tombstones.clear();
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ClarityWasmContext {
     pub alloc: WasmAllocator,
-    owned_values: Vec<Option<Value>>,
-    tombstones: Vec<i32>
+    pub values: ValuesContext
 }
 
 impl Default for ClarityWasmContext {
     fn default() -> Self {
         Self {
-            alloc: WasmAllocator::new(),
-            owned_values: Vec::<Option<Value>>::with_capacity(1000),
-            tombstones: Vec::<i32>::with_capacity(1000)
+            alloc: WasmAllocator::default(),
+            values: ValuesContext::default()
         }
     }
 }
@@ -112,67 +179,8 @@ impl ClarityWasmContext {
         ClarityWasmContext::default()
     }
 
-    pub fn push_value(&mut self, value: Value) -> i32 {
-        if let Some(idx) = self.tombstones.pop() {
-            //eprintln!("pushing to tombstone: len: {}, idx: {}", self.owned_values.len(), idx);
-            self.owned_values[idx as usize] = Some(value);
-            idx
-        } else {
-            let idx = self.owned_values.len();
-            //eprintln!("pushing (new) to idx {}", idx);
-            self.owned_values.push(Some(value));
-            idx as i32
-        }
-    }
-
-    pub fn get_value(&mut self, ptr: i32) -> Option<Value> {
-        //eprintln!("take value {}", ptr);
-        let value = self.owned_values[ptr as usize].take();
-        value
-    }
-
-    pub fn borrow_value(&self, ptr: i32) -> Option<&Value> {
-        self.owned_values[ptr as usize].as_ref()
-    }
-
-    pub fn set_value(&mut self, ptr: i32, value: Value) {
-        //eprintln!("set value {}", ptr);
-        self.owned_values[ptr as usize] = Some(value);
-    }
-
-    pub fn copy_value_into(&mut self, from_ptr: i32, to_ptr: i32) {
-        //eprintln!("copy from {} into {}", from_ptr, to_ptr);
-        self.owned_values[to_ptr as usize] = self.owned_values[from_ptr as usize].clone();
-    }
-
-    pub fn new_ptr(&mut self) -> i32 {
-        if let Some(idx) = self.tombstones.pop() {
-            //eprintln!("new ptr from tombstone: {}", idx);
-            idx
-        } else {
-            let idx = self.owned_values.len();
-            //eprintln!("pushing new pointer to idx {}", idx);
-            self.owned_values.push(None);
-            idx as i32
-        }
-    }
-
-    pub fn drop_ptr(&mut self, ptr: i32) {
-        //eprintln!("tombstoning {}", ptr);
-        self.tombstones.push(ptr);
-        self.owned_values[ptr as usize] = None;
-
-    }
-
-    pub fn value_count(&self) -> usize {
-        //eprintln!("value count: {}", self.owned_values.len());
-        self.owned_values.len()
-    }
-
-    pub fn clear_values(&mut self) {
-        //eprintln!("clearing values");
-        self.owned_values.clear();
-        self.tombstones.clear();
+    pub fn borrow(&mut self) -> &mut Self {
+        self
     }
 }
 

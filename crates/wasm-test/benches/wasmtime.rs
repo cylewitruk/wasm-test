@@ -85,14 +85,14 @@ pub fn fold_add_square_rustref(c: &mut Criterion) {
     }
 
     c.bench_function("fold-add-square/rustref/i128", |b| {
-        store.data_mut().clear_values();
+        store.data_mut().values.clear();
 
         let sequence = Value::list_from(sequence_values.clone())
             .expect("Failed to create list");
         let init = Value::Int(1);
 
-        let seq_ptr = store.data_mut().push_value(sequence);
-        let init_ptr = store.data_mut().push_value(init);
+        let seq_ptr = store.data_mut().values.push(sequence);
+        let init_ptr = store.data_mut().values.push(init);
 
         b.iter(|| {
             instance_fn
@@ -197,8 +197,8 @@ pub fn add_rustref(c: &mut Criterion) {
         Val::null(),
     ];
 
-    let a_ptr = store.data_mut().push_value(Value::Int(1024));
-    let b_ptr = store.data_mut().push_value(Value::Int(2048));
+    let a_ptr = store.data_mut().values.push(Value::Int(1024));
+    let b_ptr = store.data_mut().values.push(Value::Int(2048));
 
     c.bench_function("add/rustref (indirect)/i128", |b| {
         //store.data_mut().clear_values();
@@ -217,7 +217,7 @@ pub fn add_rustref(c: &mut Criterion) {
                 )
                 .expect("Failed to call function");
 
-            store.data_mut().drop_ptr(results[0].unwrap_i32());
+            store.data_mut().values.drop(results[0].unwrap_i32());
         });
     });
 }
@@ -226,8 +226,8 @@ pub fn add_rustref(c: &mut Criterion) {
 pub fn add_rustref_direct(c: &mut Criterion) {
     let (_, mut store) = load_instance();
 
-    let a_ptr = store.data_mut().push_value(Value::Int(1));
-    let b_ptr = store.data_mut().push_value(Value::Int(2));
+    let a_ptr = store.data_mut().values.push(Value::Int(1));
+    let b_ptr = store.data_mut().values.push(Value::Int(2));
 
     let add_fn = wasm_test::runtime::native_functions::define_add_rustref(&mut store);
     let params = &[
@@ -243,7 +243,7 @@ pub fn add_rustref_direct(c: &mut Criterion) {
                 .call(&mut store, params, &mut results)
                 .expect("Failed to call function");
 
-            store.data_mut().drop_ptr(results[0].unwrap_i32());
+            store.data_mut().values.drop(results[0].unwrap_i32());
         });
     });
 }

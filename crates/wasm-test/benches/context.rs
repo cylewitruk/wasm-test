@@ -13,8 +13,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("context/push/i128", move |b| {
         b.iter_batched(|| {}, |_| {
             let value = Value::Int(1);
-            let ptr = data.push_value(value);
-            data.drop_ptr(ptr);
+            let ptr = data.values.push(value);
+            data.values.drop(ptr);
         },
         criterion::BatchSize::SmallInput);
     });
@@ -22,20 +22,20 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("context/take/i128", move |b| {
         let mut store = get_new_store();
         let value = Value::Int(1);
-        let ptr = store.data_mut().push_value(value);
+        let ptr = store.data_mut().values.push(value);
 
         b.iter(|| {
-            store.data_mut().get_value(ptr);
+            store.data_mut().values.take(ptr);
         })
     });
 
     c.bench_function("context/drop/i128", move |b| {
         let mut store = get_new_store();
         let value = Value::Int(1);
-        let ptr = store.data_mut().push_value(value);
+        let ptr = store.data_mut().values.push(value);
 
         b.iter(|| {
-            store.data_mut().drop_ptr(ptr);
+            store.data_mut().values.drop(ptr);
         })
     });
 }

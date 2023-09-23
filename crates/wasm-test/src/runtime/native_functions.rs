@@ -188,9 +188,9 @@ pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
         |mut caller: Caller<'_, ClarityWasmContext>,
         a_ptr: i32,
         b_ptr: i32| -> i32 {
-            let data = caller.data_mut();
-            let a = data.borrow_value(a_ptr).unwrap();
-            let b = data.borrow_value(b_ptr).unwrap();
+            let data = caller.data_mut().borrow();
+            let a = data.values.borrow(a_ptr).unwrap();
+            let b = data.values.borrow(b_ptr).unwrap();
 
             let result = match (a, b) {
                 (Value::Int(a), Value::Int(b)) => {
@@ -202,7 +202,7 @@ pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
                 _ => todo!("Add not implemented for given types")
             };
 
-            data.push_value(result)
+            data.values.push(result)
         }
     )
 }
@@ -249,8 +249,9 @@ pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
         |mut caller: Caller<'_, ClarityWasmContext>,
         a_ptr: i32,
         b_ptr: i32| -> i32 {
-            let a = caller.data_mut().get_value(a_ptr).unwrap();
-            let b = caller.data_mut().get_value(b_ptr).unwrap();
+            let data = caller.data_mut().borrow();
+            let a = data.values.take(a_ptr).unwrap();
+            let b = data.values.take(b_ptr).unwrap();
 
             let result = match (a, b) {
                 (Value::Int(a), Value::Int(b)) => {
@@ -259,7 +260,7 @@ pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
                 _ => todo!("Add not implemented for given types")
             };
 
-            caller.data_mut().push_value(result)
+            data.values.push(result)
         }
     )
 }
@@ -360,28 +361,28 @@ pub fn define_fold_rustref(mut store: impl AsContextMut<Data = ClarityWasmContex
             //let data = caller.data_mut();
 
             // This should be a pointer to a Clarity `Value::Sequence`.
-            let seq = caller.data_mut().get_value(seq_ptr).unwrap();
+            let seq = caller.data_mut().values.take(seq_ptr).unwrap();
 
             // This should be a pointer to a Clarity `Value` of the same type as the sequence.
-            let init = caller.data_mut().get_value(init_ptr).unwrap();
+            let init = caller.data_mut().values.take(init_ptr).unwrap();
             
             // Pre-allocate the results array for Wasmtime `call`. We will re-use this array for
             // each iteration.
             let results = &mut [Val::null()];
 
             // Create an empty pointer which we will re-use for each value in the iteration below
-            let val_ptr = caller.data_mut().new_ptr();
+            let val_ptr = caller.data_mut().values.new_ptr();
 
             // Copy the `init` value into a new pointer. We will re-use this pointer, updating it
             // with each result from the fold function call.
-            let acc_ptr = caller.data_mut().push_value(init);
+            let acc_ptr = caller.data_mut().values.push(init);
 
             match seq {
                 Value::Sequence(SequenceData::List(list)) => {
                     for value in list.data.iter() {
                         // We're iterating through real Clarity values, so prior to passing them to
                         // the fold function we need to put the value into our data struct.
-                        caller.data_mut().set_value(val_ptr, value.to_owned());
+                        caller.data_mut().values.set(val_ptr, value.to_owned());
 
                         // Call the Wasm function which we should fold over.
                         func.call(
@@ -398,13 +399,13 @@ pub fn define_fold_rustref(mut store: impl AsContextMut<Data = ClarityWasmContex
                     // This should be a pointer to the result from the function call, which should
                     // return a single value of the same type as the sequence. We will read the value
                     let result_ptr = results[0].unwrap_i32();
-                    caller.data_mut().copy_value_into(result_ptr, acc_ptr);
+                    caller.data_mut().values.copy_into(result_ptr, acc_ptr);
                 },
                 _ => panic!("Not a valid sequence type"),
             };
 
             // Drop any pointers which aren't needed any longer by this function.
-            caller.data_mut().drop_ptr(val_ptr);
+            caller.data_mut().values.drop(val_ptr);
 
             // Our result will be the last accumulator value, so we return that pointer.
             acc_ptr

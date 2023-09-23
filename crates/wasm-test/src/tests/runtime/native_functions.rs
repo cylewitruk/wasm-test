@@ -31,8 +31,8 @@ fn test_add_extref(a: Value, b: Value) -> Value {
 fn test_add_rustref(a: Value, b: Value) -> Value {
     let mut store = get_new_store();
 
-    let a_ptr = store.data_mut().push_value(a);
-    let b_ptr = store.data_mut().push_value(b);
+    let a_ptr = store.data_mut().values.push(a);
+    let b_ptr = store.data_mut().values.push(b);
 
     let add_fn = crate::runtime::native_functions::define_add_rustref(&mut store);
     let params = &[
@@ -47,7 +47,7 @@ fn test_add_rustref(a: Value, b: Value) -> Value {
         .expect("Failed to call function");
 
     let result_ptr = results[0].unwrap_i32();
-    let result = store.data_mut().get_value(result_ptr);
+    let result = store.data_mut().values.take(result_ptr);
     println!("Result: {:?}", result);
     result.unwrap()
 }
