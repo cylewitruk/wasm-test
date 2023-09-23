@@ -14,7 +14,7 @@ fn test_add_extref(a: Value, b: Value) -> Value {
     ];
     let mut results = [Val::ExternRef(Some(ExternRef::new(Value::none())))];
     add_fn
-        .call(store, params, &mut results)
+        .call(&mut store, params, &mut results)
         .expect("Failed to call function");
 
     results[0]
@@ -24,6 +24,32 @@ fn test_add_extref(a: Value, b: Value) -> Value {
         .downcast_ref::<Value>()
         .unwrap()
         .to_owned()
+}
+
+#[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
+#[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]
+fn test_add_rustref(a: Value, b: Value) -> Value {
+    let mut store = get_new_store();
+
+    let a_ptr = store.data_mut().push_value(a);
+    let b_ptr = store.data_mut().push_value(b);
+
+    let add_fn = crate::runtime::native_functions::define_add_rustref(&mut store);
+    let params = &[
+        Val::I32(a_ptr),
+        Val::I32(b_ptr),
+    ];
+
+    let mut results = [Val::null()];
+
+    add_fn
+        .call(&mut store, params, &mut results)
+        .expect("Failed to call function");
+
+    let result_ptr = results[0].unwrap_i32();
+    let result = store.data().get_value(result_ptr);
+    println!("Result: {:?}", result);
+    result
 }
 
 /// Helper function. Initializes a clean new `Store` using defaults, but

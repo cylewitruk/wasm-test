@@ -3,7 +3,7 @@
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
-use crate::runtime::FuncResultTrait;
+use crate::runtime::FuncResultMemoryTrait;
 use crate::serialization::{
     deserialize_clarity_seq_to_ptrs, deserialize_clarity_value,
     get_type_indicator_from_serialized_value, serialize_clarity_value, TypeIndicator, HEADER_LEN,
@@ -15,7 +15,7 @@ use clarity::vm::{
 };
 use wasmtime::{AsContext, AsContextMut, Caller, ExternRef, Func, Val};
 
-use super::{FuncResult, RuntimeError};
+use super::{FuncResultMemory, RuntimeError};
 
 /// Holds a native function name and function implementation.
 #[derive(Debug)]
@@ -98,7 +98,7 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
          a_len: i32,
          b_ptr: i32,
          b_len: i32|
-         -> FuncResult {
+         -> FuncResultMemory {
             // Retrieve an instance of the `vm_mem` exported memory.
             let memory = caller.get_export("vm_mem").unwrap().into_memory().unwrap();
             // Get a handle to a slice representing the in-memory data.
@@ -106,41 +106,41 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
 
             // Fetch the bytes for `a` from memory.
             let a_bytes: [u8; 16] = data
-                [(a_ptr + HEADER_LEN) as usize..(a_ptr + a_len - HEADER_LEN) as usize]
+                [(a_ptr + HEADER_LEN) as usize..(a_ptr + HEADER_LEN + a_len - HEADER_LEN) as usize]
                 .try_into()
-                .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
 
             // Get the type of `a`.
             let a_ty = get_type_indicator_from_serialized_value(&a_bytes)
-                .map_err(|_| FuncResult::err(RuntimeError::FailedToDiscernSerializedType))
+                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDiscernSerializedType))
                 .unwrap();
 
             // Assert that `a` is an integral type.
             if !a_ty.is_integer() {
-                return FuncResult::err(RuntimeError::FunctionOnlySupportsIntegralValues);
+                return FuncResultMemory::err(RuntimeError::FunctionOnlySupportsIntegralValues);
             }
 
             // Fetch the bytes for `b` from memory.
             let b_bytes: [u8; 16] = data
-                [(b_ptr + HEADER_LEN) as usize..(b_ptr + b_len - HEADER_LEN) as usize]
+                [(b_ptr + HEADER_LEN) as usize..(b_ptr + HEADER_LEN + b_len - HEADER_LEN) as usize]
                 .try_into()
-                .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
 
             // Get the type of `b`.
             let b_ty = get_type_indicator_from_serialized_value(&b_bytes)
-                .map_err(|_| FuncResult::err(RuntimeError::FailedToDiscernSerializedType))
+                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDiscernSerializedType))
                 .unwrap();
 
             // Assert that `b` is an integral type.
             if !b_ty.is_integer() {
-                return FuncResult::err(RuntimeError::FunctionOnlySupportsIntegralValues);
+                return FuncResultMemory::err(RuntimeError::FunctionOnlySupportsIntegralValues);
             }
 
             // Assert that `a` and `b` are of the same type.
             if a_ty != b_ty {
-                return FuncResult::err(RuntimeError::ArgumentTypeMismatch);
+                return FuncResultMemory::err(RuntimeError::ArgumentTypeMismatch);
             }
 
             // Result buffer
@@ -153,7 +153,7 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
                 if let Some(add_result) = a.checked_add(b) {
                     result = add_result.to_le_bytes();
                 } else {
-                    return FuncResult::err(RuntimeError::ArithmeticOverflow);
+                    return FuncResultMemory::err(RuntimeError::ArithmeticOverflow);
                 }
             } else if a_ty == TypeIndicator::UInt {
                 // Handle case for unsigned integers
@@ -162,7 +162,7 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
                 if let Some(add_result) = a.checked_add(b) {
                     result = add_result.to_le_bytes();
                 } else {
-                    return FuncResult::err(RuntimeError::ArithmeticOverflow);
+                    return FuncResultMemory::err(RuntimeError::ArithmeticOverflow);
                 }
             }
 
@@ -172,12 +172,38 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
             // Write the result to memory
             memory
                 .write(&mut caller, alloc.offset as usize, &result)
-                .map_err(|_| FuncResult::err(RuntimeError::FailedToWriteResultToMemory))
+                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToWriteResultToMemory))
                 .unwrap();
 
             // Return
-            FuncResult::ok(alloc)
+            FuncResultMemory::ok(alloc)
         },
+    )
+}
+
+#[inline]
+pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+    Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, ClarityWasmContext>,
+        a_ptr: i32,
+        b_ptr: i32| -> i32 {
+            let data = caller.data_mut();
+            let a = data.get_value(a_ptr);
+            let b = data.get_value(b_ptr);
+
+            let result = match (a, b) {
+                (Value::Int(a), Value::Int(b)) => {
+                    Value::Int(a+b)
+                },
+                (Value::UInt(a), Value::UInt(b)) => {
+                    Value::UInt(a.checked_add(b).unwrap())
+                }
+                _ => todo!("Add not implemented for given types")
+            };
+
+            data.push_value(result)
+        }
     )
 }
 
@@ -217,6 +243,29 @@ pub fn define_mul_extref(mut store: impl AsContextMut) -> Func {
 }
 
 #[inline]
+pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+    Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, ClarityWasmContext>,
+        a_ptr: i32,
+        b_ptr: i32| -> i32 {
+            let a = caller.data().get_value(a_ptr);
+            let b = caller.data().get_value(b_ptr);
+
+            let result = match (a, b) {
+                (Value::Int(a), Value::Int(b)) => {
+                    Value::Int(a.checked_mul(b).unwrap())
+                },
+                _ => todo!("Add not implemented for given types")
+            };
+
+            caller.data_mut().push_value(result)
+        }
+    )
+}
+
+/// Defines the `fold_mem` function.
+#[inline]
 pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
@@ -226,10 +275,10 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
          seq_len: i32,
          init_ptr: i32,
          init_len: i32|
-         -> FuncResult {
+         -> FuncResultMemory {
             // The function to fold over must be supplied.
             if func.is_none() {
-                return FuncResult::err(RuntimeError::FunctionArgumentRequired);
+                return FuncResultMemory::err(RuntimeError::FunctionArgumentRequired);
             }
 
             // Retrieve an instance of the `vm_mem` exported memory.
@@ -241,7 +290,7 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
             // Deserialize the sequence to a list of pointers to its values (we don't actually care about
             // the values in this function, so we don't need to deserialize them).
             let sequence_ptrs = deserialize_clarity_seq_to_ptrs(seq_data)
-                .map_err(|_| FuncResult::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory))
                 .unwrap();
 
             // Grab our function to fold over.
@@ -290,7 +339,80 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
     )
 }
 
-/// Defines the `fold` function.
+/// Defines the `fold_native` function.
+#[inline]
+pub fn define_fold_native(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+    todo!()
+}
+
+#[inline]
+pub fn define_fold_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+    Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, ClarityWasmContext>,
+        func: Option<Func>,
+        seq_ptr: i32,
+        init_ptr: i32| -> i32 {
+            // Assert that we got a function to fold over.
+            let func = func.expect("Fold function reference was not provided.");
+
+            // Get a handle to our data object.
+            //let data = caller.data_mut();
+
+            // This should be a pointer to a Clarity `Value::Sequence`.
+            let seq = caller.data().get_value(seq_ptr);
+
+            // This should be a pointer to a Clarity `Value` of the same type as the sequence.
+            let init = caller.data().get_value(init_ptr);
+            
+            // Pre-allocate the results array for Wasmtime `call`. We will re-use this array for
+            // each iteration.
+            let results = &mut [Val::null()];
+
+            // Create an empty pointer which we will re-use for each value in the iteration below
+            let val_ptr = caller.data_mut().new_ptr();
+
+            // Copy the `init` value into a new pointer. We will re-use this pointer, updating it
+            // with each result from the fold function call.
+            let acc_ptr = caller.data_mut().push_value(init);
+
+            match seq {
+                Value::Sequence(SequenceData::List(list)) => {
+                    for value in list.data.iter() {
+                        // We're iterating through real Clarity values, so prior to passing them to
+                        // the fold function we need to put the value into our data struct.
+                        caller.data_mut().set_value(val_ptr, value.to_owned());
+
+                        // Call the Wasm function which we should fold over.
+                        func.call(
+                            &mut caller,
+                            &[
+                                Val::I32(acc_ptr), 
+                                Val::I32(val_ptr)
+                            ],
+                            results
+                        )
+                        .expect("Failed to call fold inner function");
+                    }
+
+                    // This should be a pointer to the result from the function call, which should
+                    // return a single value of the same type as the sequence. We will read the value
+                    let result_ptr = results[0].unwrap_i32();
+                    caller.data_mut().copy_value_into(result_ptr, acc_ptr);
+                },
+                _ => panic!("Not a valid sequence type"),
+            };
+
+            // Drop any pointers which aren't needed any longer by this function.
+            caller.data_mut().drop_ptr(val_ptr);
+
+            // Our result will be the last accumulator value, so we return that pointer.
+            acc_ptr
+        }
+    )
+}
+
+/// Defines the `fold_extref` function.
 #[inline]
 pub fn define_fold_extref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
@@ -397,10 +519,13 @@ pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>
         FuncMap::new("add_extref", define_add_extref(&mut store)),
         FuncMap::new("add_native", define_add_native(&mut store)),
         FuncMap::new("add_memory", define_add_memory(&mut store)),
+        FuncMap::new("add_rustref", define_add_rustref(&mut store)),
         // `mul` (multiplication) functions
         FuncMap::new("mul_extref", define_mul_extref(&mut store)),
+        FuncMap::new("mul_rustref", define_mul_rustref(&mut store)),
         // `fold` functions
         FuncMap::new("fold_extref", define_fold_extref(&mut store)),
         FuncMap::new("fold_memory", define_fold_memory(&mut store)),
+        FuncMap::new("fold_rustref", define_fold_rustref(&mut store))
     ]
 }

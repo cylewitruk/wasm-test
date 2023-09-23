@@ -2,15 +2,16 @@
 /// https://github.com/emk/toyos-rs/blob/master/crates/alloc_buddy_simple/src/heap.rs
 /// The original version is for bare-metal `nostd` applications, while this version
 /// is adapted to work as an external memory allocator for Wasm memory. Most
-/// notably, alignment has been removed since we're not working directly with memory.
+/// notably, alignment has been removed since we're not working directly with memory
+/// and we only use safe constructs.
 use std::{
-    collections::HashMap,
     ops::{Deref, DerefMut},
 };
+use fxhash::FxHashMap;
 
 use crate::Ptr;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct WasmAllocator {
     next_offset: u32,
 }
@@ -19,7 +20,7 @@ pub struct WasmAllocator {
 impl WasmAllocator {
     /// Creates a new `WasmAllocator` with its next offset set to `0`.
     pub fn new() -> Self {
-        WasmAllocator { next_offset: 0 }
+        WasmAllocator::default()
     }
 
     /// Retrieve a pointer to the next available offset for the given size.
@@ -27,7 +28,7 @@ impl WasmAllocator {
         let len = size as u32;
         let ptr = Ptr::new(self.next_offset, len);
         self.next_offset += len;
-        return ptr;
+        ptr
     }
 
     /// Retrieve a pointer to the next available offset which can store the given
@@ -37,6 +38,8 @@ impl WasmAllocator {
     }
 }
 
+// Since the minimum we'll be storing is 32-bit integers (4 bytes) plus a three
+// byte header (7 bytes), we use a minimum block size of 8 bytes.
 const MIN_BLOCK_SIZE: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,7 +88,7 @@ impl DerefMut for WrappedPtr {
 pub struct WasmAllocator2 {
     size: u32,
     free_lists: Vec<Vec<WrappedPtr>>,
-    allocations: HashMap<u32, WrappedPtr>,
+    allocations: FxHashMap<u32, WrappedPtr>,
     next_ptr_id: u32,
     disposed_ptr_ids: Vec<u32>,
 }
@@ -103,7 +106,7 @@ impl WasmAllocator2 {
         }
 
         let mut free_lists = Vec::<Vec<WrappedPtr>>::with_capacity(128);
-        let allocations = HashMap::new();
+        let allocations = FxHashMap::default();
 
         // Create a free list for each possible block size.
         let free_list_count = size.ilog2() - MIN_BLOCK_SIZE.ilog2() + 1;
@@ -270,7 +273,7 @@ impl WasmAllocator2 {
         let size = self.order_size(order);
         // The main memory allocator doesn't have a buddy.
         if size >= self.size {
-            return None;
+            None
         } else {
             let offset = block.id ^ size;
             let list = &self.free_lists[order as usize];
@@ -315,6 +318,7 @@ impl WasmAllocator2 {
             }
             
             self.free_list_push(order as usize, block);
+            println!("{:?}", self.free_lists);
             return;
         }
     }
