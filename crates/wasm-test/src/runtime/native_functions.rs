@@ -189,15 +189,15 @@ pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
         a_ptr: i32,
         b_ptr: i32| -> i32 {
             let data = caller.data_mut();
-            let a = data.get_value(a_ptr);
-            let b = data.get_value(b_ptr);
+            let a = data.borrow_value(a_ptr).unwrap();
+            let b = data.borrow_value(b_ptr).unwrap();
 
             let result = match (a, b) {
                 (Value::Int(a), Value::Int(b)) => {
                     Value::Int(a+b)
                 },
                 (Value::UInt(a), Value::UInt(b)) => {
-                    Value::UInt(a.checked_add(b).unwrap())
+                    Value::UInt(a.checked_add(*b).unwrap())
                 }
                 _ => todo!("Add not implemented for given types")
             };
@@ -249,8 +249,8 @@ pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
         |mut caller: Caller<'_, ClarityWasmContext>,
         a_ptr: i32,
         b_ptr: i32| -> i32 {
-            let a = caller.data().get_value(a_ptr);
-            let b = caller.data().get_value(b_ptr);
+            let a = caller.data_mut().get_value(a_ptr).unwrap();
+            let b = caller.data_mut().get_value(b_ptr).unwrap();
 
             let result = match (a, b) {
                 (Value::Int(a), Value::Int(b)) => {
@@ -360,10 +360,10 @@ pub fn define_fold_rustref(mut store: impl AsContextMut<Data = ClarityWasmContex
             //let data = caller.data_mut();
 
             // This should be a pointer to a Clarity `Value::Sequence`.
-            let seq = caller.data().get_value(seq_ptr);
+            let seq = caller.data_mut().get_value(seq_ptr).unwrap();
 
             // This should be a pointer to a Clarity `Value` of the same type as the sequence.
-            let init = caller.data().get_value(init_ptr);
+            let init = caller.data_mut().get_value(init_ptr).unwrap();
             
             // Pre-allocate the results array for Wasmtime `call`. We will re-use this array for
             // each iteration.

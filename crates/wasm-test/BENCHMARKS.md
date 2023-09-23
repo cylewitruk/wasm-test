@@ -3,15 +3,15 @@
 ## Table of Contents
 
 - [Benchmark Results](#benchmark-results)
-    - [fold-add-square](#fold-add-square)
+    - [add](#add)
 
 ## Benchmark Results
 
-### fold-add-square
+### add
 
-|            | `rustref`                |
-|:-----------|:------------------------ |
-| **`i128`** | `3.68 ms` (✅ **1.00x**)  |
+|            | `rustref (indirect)`          | `rustref (direct)`              | `native`                        | `memory`                          |
+|:-----------|:------------------------------|:--------------------------------|:--------------------------------|:--------------------------------- |
+| **`i128`** | `62.60 ns` (✅ **1.00x**)      | `61.68 ns` (✅ **1.01x faster**) | `60.75 ns` (✅ **1.03x faster**) | `104.45 ns` (❌ *1.67x slower*)    |
 
 ---
 Made with [criterion-table](https://github.com/nu11ptr/criterion-table)

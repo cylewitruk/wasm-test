@@ -10,7 +10,7 @@ criterion_group!(fold_add_square_benches,
 );
 
 criterion_group!(add_benches, 
-    add_externref, 
+    //add_externref, 
     add_rustref, 
     add_rustref_direct, 
     add_native, 
@@ -18,8 +18,8 @@ criterion_group!(add_benches,
 );
 
 criterion_main!(
-    fold_add_square_benches, 
-    //add_benches
+    //fold_add_square_benches, 
+    add_benches
 );
 
 /// Helper struct to store mappings between a function name andits module import id and function id.
@@ -188,20 +188,22 @@ pub fn add_externref(c: &mut Criterion) {
 pub fn add_rustref(c: &mut Criterion) {
     let (instance, mut store) = load_instance();
 
+    let instance_fn = instance
+        .get_func(&mut store, "add_rustref_test")
+        .expect("Failed to get fn");
+
+    // Define our output parameters. Note that we're using `Option`s as stated above.
+    let results = &mut [
+        Val::null(),
+    ];
+
+    let a_ptr = store.data_mut().push_value(Value::Int(1024));
+    let b_ptr = store.data_mut().push_value(Value::Int(2048));
+
     c.bench_function("add/rustref (indirect)/i128", |b| {
-        store.data_mut().clear_values();
+        //store.data_mut().clear_values();
 
-        let instance_fn = instance
-            .get_func(&mut store, "add_rustref_test")
-            .expect("Failed to get fn");
-
-        // Define our output parameters. Note that we're using `Option`s as stated above.
-        let results = &mut [
-            Val::null(),
-        ];
-
-        let a_ptr = store.data_mut().push_value(Value::Int(1024));
-        let b_ptr = store.data_mut().push_value(Value::Int(2048));
+        
 
         b.iter(|| {
             instance_fn

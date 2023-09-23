@@ -10,7 +10,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let mut store = get_new_store();
     let data = store.data_mut();
 
-    c.bench_function("push value", move |b| {
+    c.bench_function("context/push/i128", move |b| {
         b.iter_batched(|| {}, |_| {
             let value = Value::Int(1);
             let ptr = data.push_value(value);
@@ -19,17 +19,17 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         criterion::BatchSize::SmallInput);
     });
 
-    c.bench_function("get value", move |b| {
+    c.bench_function("context/take/i128", move |b| {
         let mut store = get_new_store();
         let value = Value::Int(1);
         let ptr = store.data_mut().push_value(value);
 
         b.iter(|| {
-            store.data().get_value(ptr);
+            store.data_mut().get_value(ptr);
         })
     });
 
-    c.bench_function("drop value", move |b| {
+    c.bench_function("context/drop/i128", move |b| {
         let mut store = get_new_store();
         let value = Value::Int(1);
         let ptr = store.data_mut().push_value(value);

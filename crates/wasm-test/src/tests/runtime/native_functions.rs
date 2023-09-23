@@ -47,9 +47,9 @@ fn test_add_rustref(a: Value, b: Value) -> Value {
         .expect("Failed to call function");
 
     let result_ptr = results[0].unwrap_i32();
-    let result = store.data().get_value(result_ptr);
+    let result = store.data_mut().get_value(result_ptr);
     println!("Result: {:?}", result);
-    result
+    result.unwrap()
 }
 
 /// Helper function. Initializes a clean new `Store` using defaults, but
