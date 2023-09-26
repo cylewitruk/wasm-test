@@ -14,7 +14,7 @@ pub mod serialization;
 use fxhash::FxHashMap;
 
 use clarity::{address::b58::from, vm::Value};
-use runtime::alloc::WasmAllocator;
+use runtime::{alloc::WasmAllocator, stack::Stack};
 // Public exports
 pub use runtime::get_all_functions;
 
@@ -171,6 +171,7 @@ impl ValuesContext {
 pub struct ClarityWasmContext {
     pub alloc: WasmAllocator,
     pub values: ValuesContext,
+    pub stack: Stack
 }
 
 impl Default for ClarityWasmContext {
@@ -178,6 +179,7 @@ impl Default for ClarityWasmContext {
         Self {
             alloc: WasmAllocator::default(),
             values: ValuesContext::default(),
+            stack: Stack::new()
         }
     }
 }
