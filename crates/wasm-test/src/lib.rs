@@ -13,7 +13,7 @@ pub mod serialization;
 //use ahash::AHashMap;
 use fxhash::FxHashMap;
 
-use clarity::{vm::Value, address::b58::from};
+use clarity::{address::b58::from, vm::Value};
 use runtime::alloc::WasmAllocator;
 // Public exports
 pub use runtime::get_all_functions;
@@ -63,7 +63,7 @@ impl ClarityWasmContext {
 
     pub fn copy_value_into(&mut self, from_ptr: i32, to_ptr: i32) {
         self.owned_values.insert(
-            to_ptr, 
+            to_ptr,
             self.owned_values.get(&from_ptr).unwrap().clone()
         );
     }
@@ -90,14 +90,14 @@ impl ClarityWasmContext {
 #[derive(Debug, Clone)]
 pub struct ValuesContext {
     owned_values: Vec<Option<Value>>,
-    tombstones: Vec<i32>
+    tombstones: Vec<i32>,
 }
 
 impl Default for ValuesContext {
     fn default() -> Self {
-        Self { 
-            owned_values: Vec::<Option<Value>>::with_capacity(1000), 
-            tombstones: Vec::<i32>::with_capacity(1000)
+        Self {
+            owned_values: Vec::<Option<Value>>::with_capacity(1000),
+            tombstones: Vec::<i32>::with_capacity(1000),
         }
     }
 }
@@ -105,10 +105,12 @@ impl Default for ValuesContext {
 impl ValuesContext {
     pub fn push(&mut self, value: Value) -> i32 {
         if let Some(idx) = self.tombstones.pop() {
+            //eprintln!("[context] Pushing using tombstoned idx {}. Tombstones left: {}", idx, self.tombstones.len());
             self.owned_values[idx as usize] = Some(value);
             idx
         } else {
             let idx = self.owned_values.len();
+            //eprintln!("[context] Pushing new idx: {}", idx);
             self.owned_values.push(Some(value));
             idx as i32
         }
@@ -116,6 +118,7 @@ impl ValuesContext {
 
     pub fn take(&mut self, ptr: i32) -> Option<Value> {
         let value = self.owned_values[ptr as usize].take();
+        self.tombstones.push(ptr);
         value
     }
 
@@ -123,51 +126,58 @@ impl ValuesContext {
         self.owned_values[ptr as usize].as_ref()
     }
 
-    pub fn set(&mut self, ptr: i32, value: Value) {
+    pub fn set(&mut self, ptr: i32, value: Value) -> &mut Self {
+        //eprintln!("[context] Setting idx {} to {:?}", ptr, value);
         self.owned_values[ptr as usize] = Some(value);
+        self
     }
 
-    pub fn copy_into(&mut self, from_ptr: i32, to_ptr: i32) {
+    pub fn copy_into(&mut self, from_ptr: i32, to_ptr: i32) -> &mut Self {
         self.owned_values[to_ptr as usize] = self.owned_values[from_ptr as usize].clone();
+        self
     }
 
     pub fn new_ptr(&mut self) -> i32 {
         if let Some(idx) = self.tombstones.pop() {
+            //eprintln!("[context] New ptr using tombstoned idx {}. Tombstones left: {}", idx, self.tombstones.len());
             idx
         } else {
             let idx = self.owned_values.len();
+            //eprintln!("[context] New ptr at new idx: {}", idx);
             self.owned_values.push(None);
             idx as i32
         }
     }
 
-    pub fn drop(&mut self, ptr: i32) {
+    pub fn drop(&mut self, ptr: i32) -> &mut Self {
         self.tombstones.push(ptr);
         self.owned_values[ptr as usize] = None;
-
+        //eprintln!("[context] Dropped idx {}. Tombstones left: {}", ptr, self.tombstones.len());
+        self
     }
 
     pub fn count(&self) -> usize {
         self.owned_values.len()
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> &mut Self {
         self.owned_values.clear();
         self.tombstones.clear();
+        self
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ClarityWasmContext {
     pub alloc: WasmAllocator,
-    pub values: ValuesContext
+    pub values: ValuesContext,
 }
 
 impl Default for ClarityWasmContext {
     fn default() -> Self {
         Self {
             alloc: WasmAllocator::default(),
-            values: ValuesContext::default()
+            values: ValuesContext::default(),
         }
     }
 }
@@ -196,10 +206,7 @@ impl Ptr {
     }
 
     pub fn new_uint(offset: u32, len: u32) -> Self {
-        Ptr {
-            offset,
-            len,
-        }
+        Ptr { offset, len }
     }
 
     pub fn offset_i32(&self) -> i32 {

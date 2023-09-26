@@ -33,6 +33,19 @@ impl FuncMap {
     }
 }
 
+/// Defines the `drop_ptr` function which allows Wasm to drop unused RustRef
+/// pointers (such as intermediate results, etc.).
+#[inline]
+pub fn define_drop_ptr_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+    Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, ClarityWasmContext>, ptr: i32| {
+            //eprintln!("[drop_ptr] Dropping ptr: {}", ptr);
+            caller.data_mut().values.drop(ptr);
+        },
+    )
+}
+
 /// Defines the `add_extref` function. This function makes full use of `ExternRef`s
 /// instead of value types or memory, meaning that the values coming across are
 /// pure references to real Clarity `Value` enum variants.
@@ -108,7 +121,9 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
             let a_bytes: [u8; 16] = data
                 [(a_ptr + HEADER_LEN) as usize..(a_ptr + HEADER_LEN + a_len - HEADER_LEN) as usize]
                 .try_into()
-                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| {
+                    FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory)
+                })
                 .unwrap();
 
             // Get the type of `a`.
@@ -125,7 +140,9 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
             let b_bytes: [u8; 16] = data
                 [(b_ptr + HEADER_LEN) as usize..(b_ptr + HEADER_LEN + b_len - HEADER_LEN) as usize]
                 .try_into()
-                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| {
+                    FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory)
+                })
                 .unwrap();
 
             // Get the type of `b`.
@@ -185,25 +202,19 @@ pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>
 pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, ClarityWasmContext>,
-        a_ptr: i32,
-        b_ptr: i32| -> i32 {
+        |mut caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
             let data = caller.data_mut().borrow();
             let a = data.values.borrow(a_ptr).unwrap();
             let b = data.values.borrow(b_ptr).unwrap();
 
             let result = match (a, b) {
-                (Value::Int(a), Value::Int(b)) => {
-                    Value::Int(a+b)
-                },
-                (Value::UInt(a), Value::UInt(b)) => {
-                    Value::UInt(a.checked_add(*b).unwrap())
-                }
-                _ => todo!("Add not implemented for given types")
+                (Value::Int(a), Value::Int(b)) => Value::Int(a + b),
+                (Value::UInt(a), Value::UInt(b)) => Value::UInt(a.checked_add(*b).unwrap()),
+                _ => todo!("Add not implemented for given types"),
             };
 
             data.values.push(result)
-        }
+        },
     )
 }
 
@@ -246,22 +257,22 @@ pub fn define_mul_extref(mut store: impl AsContextMut) -> Func {
 pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, ClarityWasmContext>,
-        a_ptr: i32,
-        b_ptr: i32| -> i32 {
-            let data = caller.data_mut().borrow();
-            let a = data.values.take(a_ptr).unwrap();
-            let b = data.values.take(b_ptr).unwrap();
+        |mut caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
+            //eprintln!("[mul] a_ptr: {}, b_ptr: {}", a_ptr, b_ptr);
+            let data = caller.data_mut();
+            let a = data.values.borrow(a_ptr).unwrap();
+            let b = data.values.borrow(b_ptr).unwrap();
 
             let result = match (a, b) {
-                (Value::Int(a), Value::Int(b)) => {
-                    Value::Int(a.checked_mul(b).unwrap())
-                },
-                _ => todo!("Add not implemented for given types")
+                (Value::Int(a), Value::Int(b)) => Value::Int(a.checked_mul(*b).unwrap()),
+                (Value::UInt(a), Value::UInt(b)) => Value::UInt(a.checked_mul(*b).unwrap()),
+                _ => todo!("Add not implemented for given types"),
             };
 
-            data.values.push(result)
-        }
+            let ptr = data.values.push(result);
+            //eprintln!("[mul] Result ptr: {}", ptr);
+            ptr
+        },
     )
 }
 
@@ -291,7 +302,9 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
             // Deserialize the sequence to a list of pointers to its values (we don't actually care about
             // the values in this function, so we don't need to deserialize them).
             let sequence_ptrs = deserialize_clarity_seq_to_ptrs(seq_data)
-                .map_err(|_| FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory))
+                .map_err(|_| {
+                    FuncResultMemory::err(RuntimeError::FailedToDeserializeValueFromMemory)
+                })
                 .unwrap();
 
             // Grab our function to fold over.
@@ -351,65 +364,54 @@ pub fn define_fold_rustref(mut store: impl AsContextMut<Data = ClarityWasmContex
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,
-        func: Option<Func>,
-        seq_ptr: i32,
-        init_ptr: i32| -> i32 {
+         func: Option<Func>,
+         seq_ptr: i32,
+         init_ptr: i32|
+         -> i32 {
+            //eprintln!("[fold] seq_ptr: {}, init_ptr: {}", seq_ptr, init_ptr);
             // Assert that we got a function to fold over.
             let func = func.expect("Fold function reference was not provided.");
-
-            // Get a handle to our data object.
-            //let data = caller.data_mut();
 
             // This should be a pointer to a Clarity `Value::Sequence`.
             let seq = caller.data_mut().values.take(seq_ptr).unwrap();
 
-            // This should be a pointer to a Clarity `Value` of the same type as the sequence.
-            let init = caller.data_mut().values.take(init_ptr).unwrap();
-            
             // Pre-allocate the results array for Wasmtime `call`. We will re-use this array for
             // each iteration.
             let results = &mut [Val::null()];
 
             // Create an empty pointer which we will re-use for each value in the iteration below
             let val_ptr = caller.data_mut().values.new_ptr();
+            let mut last_result_ptr: Option<i32> = None;
 
-            // Copy the `init` value into a new pointer. We will re-use this pointer, updating it
-            // with each result from the fold function call.
-            let acc_ptr = caller.data_mut().values.push(init);
-
-            match seq {
+            let result = match &seq {
                 Value::Sequence(SequenceData::List(list)) => {
-                    for value in list.data.iter() {
-                        // We're iterating through real Clarity values, so prior to passing them to
-                        // the fold function we need to put the value into our data struct.
-                        caller.data_mut().values.set(val_ptr, value.to_owned());
+                    list.data.iter().fold(init_ptr, |acc_inner_ptr, val| {
+                        caller.data_mut().values.set(val_ptr, val.to_owned());
 
-                        // Call the Wasm function which we should fold over.
                         func.call(
                             &mut caller,
-                            &[
-                                Val::I32(acc_ptr), 
-                                Val::I32(val_ptr)
-                            ],
-                            results
+                            &[Val::I32(val_ptr), Val::I32(acc_inner_ptr)],
+                            results,
                         )
                         .expect("Failed to call fold inner function");
-                    }
 
-                    // This should be a pointer to the result from the function call, which should
-                    // return a single value of the same type as the sequence. We will read the value
-                    let result_ptr = results[0].unwrap_i32();
-                    caller.data_mut().values.copy_into(result_ptr, acc_ptr);
-                },
+                        let result_ptr = results[0].unwrap_i32();
+                        caller.data_mut().values.drop(acc_inner_ptr);
+                        last_result_ptr = Some(result_ptr);
+
+                        result_ptr
+                    })
+                }
                 _ => panic!("Not a valid sequence type"),
             };
 
-            // Drop any pointers which aren't needed any longer by this function.
+            // Drop any pointers which aren't needed any longer by this function and put
+            // the `seq` and `init` values back.
             caller.data_mut().values.drop(val_ptr);
 
             // Our result will be the last accumulator value, so we return that pointer.
-            acc_ptr
-        }
+            result
+        },
     )
 }
 
@@ -527,6 +529,8 @@ pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>
         // `fold` functions
         FuncMap::new("fold_extref", define_fold_extref(&mut store)),
         FuncMap::new("fold_memory", define_fold_memory(&mut store)),
-        FuncMap::new("fold_rustref", define_fold_rustref(&mut store))
+        FuncMap::new("fold_rustref", define_fold_rustref(&mut store)),
+        // `drop_ptr` functions
+        FuncMap::new("drop_ptr_rustref", define_drop_ptr_rustref(&mut store)),
     ]
 }

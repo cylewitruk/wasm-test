@@ -21,6 +21,8 @@ num = "0.4.1"
 num-derive = "0.4.0"
 num-traits = "0.2.16"
 fxhash = "0.2.1"
+chrono = "0.4.30"
+parking_lot = "0.12.1"
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -43,4 +45,8 @@ harness = false
 
 [[bench]]
 name = "context"
+harness = false
+
+[[bench]]
+name = "stack"
 harness = false

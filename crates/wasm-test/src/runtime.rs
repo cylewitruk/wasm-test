@@ -1,11 +1,14 @@
 pub(crate) mod alloc;
+pub(crate) mod objpool;
+pub mod stack;
+
 pub mod native_functions;
 
 pub use native_functions::get_all_functions;
-use num::FromPrimitive;
-use num_derive::{FromPrimitive, ToPrimitive};
 
 use crate::Ptr;
+use num::FromPrimitive;
+use num_derive::{FromPrimitive, ToPrimitive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 pub enum RuntimeError {

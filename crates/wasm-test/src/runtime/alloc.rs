@@ -1,13 +1,11 @@
+use fxhash::FxHashMap;
 /// A slightly adapted version of the Buddy Allocator provided by `toyrs-rs` crate:
 /// https://github.com/emk/toyos-rs/blob/master/crates/alloc_buddy_simple/src/heap.rs
 /// The original version is for bare-metal `nostd` applications, while this version
 /// is adapted to work as an external memory allocator for Wasm memory. Most
 /// notably, alignment has been removed since we're not working directly with memory
 /// and we only use safe constructs.
-use std::{
-    ops::{Deref, DerefMut},
-};
-use fxhash::FxHashMap;
+use std::ops::{Deref, DerefMut};
 
 use crate::Ptr;
 
@@ -54,15 +52,15 @@ impl WrappedPtr {
         WrappedPtr {
             id,
             ptr: Ptr::new(offset, len),
-            size: len
+            size: len,
         }
     }
 
     pub(crate) fn from_ptr(id: u32, ptr: Ptr) -> Self {
-        WrappedPtr { 
-            id, 
-            ptr, 
-            size: ptr.len
+        WrappedPtr {
+            id,
+            ptr,
+            size: ptr.len,
         }
     }
 
@@ -213,7 +211,12 @@ impl WasmAllocator2 {
 
     /// Split a `block` of order `order` down into a block of order `order_needed`,
     /// placing any unused chunks on the free list.
-    pub(crate) fn split_free_block(&mut self, block: &mut WrappedPtr, mut order: u32, order_needed: u32) {
+    pub(crate) fn split_free_block(
+        &mut self,
+        block: &mut WrappedPtr,
+        mut order: u32,
+        order_needed: u32,
+    ) {
         // Get the size of our starting block.
         let mut size_to_split = self.order_size(order);
 
@@ -287,9 +290,10 @@ impl WasmAllocator2 {
     }
 
     pub fn deallocate(&mut self, ptr: WrappedPtr) {
-        let initial_order = self.allocation_order(ptr.size)
+        let initial_order = self
+            .allocation_order(ptr.size)
             .expect("Failed to discern order for pointer.");
-        
+
         // Remove the allocation from the allocations table. Note that this is offset-based
         // to help keep lookups fast together with the buddy system.
         self.allocations.remove(&ptr.offset);
@@ -298,11 +302,12 @@ impl WasmAllocator2 {
         for order in initial_order..self.free_lists.len() as u32 {
             let block_size = block.len;
             if let Some(mut buddy) = self.find_buddy(order, block) {
-                if self.free_list_remove(order as usize, buddy.id) { // it's not the buddy id, it's the offset of the buddy..
+                if self.free_list_remove(order as usize, buddy.id) {
+                    // it's not the buddy id, it's the offset of the buddy..
 
                     println!("block: {:?}", block);
                     println!("buddy: {:?}", buddy);
-                    
+
                     if block.offset < buddy.offset {
                         block.set_len(block_size * 2);
                         block.set_size(block_size * 2);
@@ -316,7 +321,7 @@ impl WasmAllocator2 {
                     continue;
                 }
             }
-            
+
             self.free_list_push(order as usize, block);
             println!("{:?}", self.free_lists);
             return;

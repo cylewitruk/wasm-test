@@ -1,26 +1,24 @@
+use std::{cell::RefCell, time::Duration};
+
 use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
 use walrus::FunctionId;
 use wasm_test::{get_all_functions, serialization::serialize_clarity_value, ClarityWasmContext};
-use wasmtime::{Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
+use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
-criterion_group!(fold_add_square_benches,
-    //fold_add_square_externref,
+criterion_group!(
+    fold_add_square_benches,
+    fold_add_square_externref,
     fold_add_square_rustref,
 );
 
-criterion_group!(add_benches, 
-    //add_externref, 
-    add_rustref, 
-    add_rustref_direct, 
-    add_native, 
-    add_memory,
-);
+criterion_group! {
+    name = add_benches;
+    config = Criterion::default().measurement_time(Duration::from_secs(10));
+    targets = add_wat, add_externref, add_rustref, add_rustref_direct, add_native, add_memory
+}
 
-criterion_main!(
-    //fold_add_square_benches, 
-    add_benches
-);
+criterion_main!(fold_add_square_benches, add_benches);
 
 /// Helper struct to store mappings between a function name andits module import id and function id.
 #[derive(Debug, Clone)]
@@ -67,45 +65,61 @@ impl GetImportedFunctionByName for &[WasmFunctionMapping] {
 }
 
 pub fn fold_add_square_rustref(c: &mut Criterion) {
-    let (instance, mut store) = load_instance();
+    let (instance, store) = load_instance();
+    let mut store = RefCell::new(store);
 
     let instance_fn = instance
-            .get_func(&mut store, "fold_add_square_rustref_test")
-            .expect("Failed to get fn");
-
-    // Define our output parameters. Note that we're using `Option`s as stated above.
-    let results = &mut [
-        Val::null(),
-    ];
+        .get_func(
+            store.borrow_mut().as_context_mut(),
+            "fold_add_square_rustref_test",
+        )
+        .expect("Failed to get fn");
 
     // Define our input parameters.
     let mut sequence_values = Vec::<Value>::with_capacity(8192);
-    for i in 1..8193 {
+    for i in 1..=8192 {
         sequence_values.push(Value::Int(i));
     }
 
     c.bench_function("fold-add-square/rustref/i128", |b| {
-        store.data_mut().values.clear();
+        store.get_mut().data_mut().values.clear();
 
-        let sequence = Value::list_from(sequence_values.clone())
-            .expect("Failed to create list");
+        let sequence = Value::list_from(sequence_values.clone()).expect("Failed to create list");
         let init = Value::Int(1);
 
-        let seq_ptr = store.data_mut().values.push(sequence);
-        let init_ptr = store.data_mut().values.push(init);
+        let push_values = || {
+            let mut data = store.borrow_mut();
+            let data = data.data_mut();
 
-        b.iter(|| {
-            instance_fn
-                .call(
-                    &mut store,
-                    &[
-                        Val::I32(seq_ptr),
-                        Val::I32(init_ptr),
-                    ],
-                    results,
-                )
-                .expect("Failed to call function")
-        })
+            (
+                data.values.push(sequence.clone()),
+                data.values.push(init.clone()),
+            )
+        };
+
+        let results = &mut [Val::null()];
+
+        b.iter_batched(
+            || push_values(),
+            |i| {
+                instance_fn
+                    .call(
+                        store.borrow_mut().as_context_mut(),
+                        &[Val::I32(i.0), Val::I32(i.1)],
+                        results,
+                    )
+                    .expect("Failed to call function");
+
+                store
+                    .borrow_mut()
+                    .data_mut()
+                    .values
+                    .drop(results[0].unwrap_i32());
+            },
+            criterion::BatchSize::LargeInput,
+        );
+
+        //eprintln!("Data size: {}", store.borrow().data().values.count());
     });
 }
 
@@ -114,8 +128,8 @@ pub fn fold_add_square_externref(c: &mut Criterion) {
     let (instance, mut store) = load_instance();
 
     let instance_fn = instance
-            .get_func(&mut store, "fold_add_square_extref_test")
-            .expect("Failed to get fn");
+        .get_func(&mut store, "fold_add_square_extref_test")
+        .expect("Failed to get fn");
 
     // Define our output parameters. Note that we're using `Option`s as stated above.
     let results = &mut [
@@ -139,32 +153,56 @@ pub fn fold_add_square_externref(c: &mut Criterion) {
                 .call(
                     &mut store,
                     &[
-                        Val::ExternRef(seq_ref.clone()), // Option<ExternRef>
-                        Val::ExternRef(init_ref.clone()),     // Option<ExternRef>
+                        Val::ExternRef(seq_ref.clone()),  // Option<ExternRef>
+                        Val::ExternRef(init_ref.clone()), // Option<ExternRef>
                     ],
                     results,
                 )
                 .expect("Failed to call function")
         })
     });
+
+    let result = results[0].unwrap_externref().unwrap();
+    let result = result.data().downcast_ref::<Value>().unwrap();
+    eprintln!("Result: {:?}", result);
 }
 
 //#region Add
+
+/// Add using compiled WAT.
+pub fn add_wat(c: &mut Criterion) {
+    let (instance, mut store) = load_stdlib();
+    let add = instance
+        .get_func(store.as_context_mut(), "add-int")
+        .unwrap();
+
+    c.bench_function("add/compiled wat/i128", |b| {
+        b.iter(|| {
+            let mut results = [Val::I64(0), Val::I64(0)];
+            add.call(
+                &mut store,
+                &[Val::I64(0), Val::I64(42), Val::I64(0), Val::I64(12345)],
+                &mut results,
+            )
+            .unwrap();
+        })
+    });
+}
 
 /// Add using Wasmtime Externrefs.
 pub fn add_externref(c: &mut Criterion) {
     let (instance, mut store) = load_instance();
 
+    let instance_fn = instance
+        .get_func(&mut store, "add_extref_test")
+        .expect("Failed to get fn");
+
+    // Define our output parameters. Note that we're using `Option`s as stated above.
+    let results = &mut [
+        Val::ExternRef(Some(ExternRef::new(Value::none()))), // Option<ExternRef>
+    ];
+
     c.bench_function("add/extref/i128", |b| {
-        let instance_fn = instance
-            .get_func(&mut store, "add_extref_test")
-            .expect("Failed to get fn");
-
-        // Define our output parameters. Note that we're using `Option`s as stated above.
-        let results = &mut [
-            Val::ExternRef(Some(ExternRef::new(Value::none()))), // Option<ExternRef>
-        ];
-
         b.iter(|| {
             instance_fn
                 .call(
@@ -193,9 +231,7 @@ pub fn add_rustref(c: &mut Criterion) {
         .expect("Failed to get fn");
 
     // Define our output parameters. Note that we're using `Option`s as stated above.
-    let results = &mut [
-        Val::null(),
-    ];
+    let results = &mut [Val::null()];
 
     let a_ptr = store.data_mut().values.push(Value::Int(1024));
     let b_ptr = store.data_mut().values.push(Value::Int(2048));
@@ -203,18 +239,9 @@ pub fn add_rustref(c: &mut Criterion) {
     c.bench_function("add/rustref (indirect)/i128", |b| {
         //store.data_mut().clear_values();
 
-        
-
         b.iter(|| {
             instance_fn
-                .call(
-                    &mut store,
-                    &[
-                        Val::I32(a_ptr),
-                        Val::I32(b_ptr),
-                    ],
-                    results,
-                )
+                .call(&mut store, &[Val::I32(a_ptr), Val::I32(b_ptr)], results)
                 .expect("Failed to call function");
 
             store.data_mut().values.drop(results[0].unwrap_i32());
@@ -230,10 +257,7 @@ pub fn add_rustref_direct(c: &mut Criterion) {
     let b_ptr = store.data_mut().values.push(Value::Int(2));
 
     let add_fn = wasm_test::runtime::native_functions::define_add_rustref(&mut store);
-    let params = &[
-        Val::I32(a_ptr),
-        Val::I32(b_ptr),
-    ];
+    let params = &[Val::I32(a_ptr), Val::I32(b_ptr)];
 
     let mut results = [Val::null()];
 
@@ -356,6 +380,7 @@ pub fn generate_wasm() -> Vec<u8> {
         define_fold_extref(&mut module),
         define_fold_memory(&mut module),
         define_fold_rustref(&mut module),
+        define_drop_ptr_rustref(&mut module),
     ];
 
     funcs.push(define_add_native_test(&mut module, &funcs));
@@ -380,6 +405,39 @@ pub fn generate_wasm() -> Vec<u8> {
     wasm_bytes
 }
 
+/// Helper function for loading the standard lib (wat) module.
+pub fn load_stdlib() -> (Instance, Store<()>) {
+    // Read the standard.wat file.
+    let wat_bytes = std::fs::read("standard.wat").expect("Could not read 'standard.wat'");
+
+    // Initialize config which allows for reference types.
+    let mut config = Config::new();
+    config.wasm_reference_types(true);
+
+    Engine::tls_eager_initialize();
+
+    // Initialize the wasmtime engine.
+    let engine = Engine::new(&config).expect("Failed to initialize engine");
+
+    // Pre-compile the module.
+    let precompiled = engine
+        .precompile_module(&wat_bytes)
+        .expect("Failed to precompile module");
+
+    // Initialize the wasmtime store.
+    let mut store = Store::new(&engine, ());
+
+    // Load the module compiled above.
+    let module =
+        unsafe { Module::deserialize(&engine, &precompiled).expect("Failed to load module") };
+
+    // We create a new instance and pass in any imported (host) functions.
+    (
+        Instance::new(&mut store, &module, &[]).expect("Couldn't create new module instance"),
+        store,
+    )
+}
+
 /// Helper function for loading the generated Wasm binary.
 pub fn load_instance() -> (Instance, Store<ClarityWasmContext>) {
     // Generate a wasm module (see `wasm_generator.rs`) which has a `toplevel` function
@@ -401,11 +459,10 @@ pub fn load_instance() -> (Instance, Store<ClarityWasmContext>) {
         .expect("Failed to precompile module");
 
     // Initialize the wasmtime store (using a custom state type).
-    let state = ClarityWasmContext::new();
+    let state = ClarityWasmContext::default();
     let mut store = Store::new(&engine, state);
 
     // Load the module generated above.
-    //let module = Module::from_binary(store.engine(), &wasm_bytes).expect("Failed to load module");
     let module =
         unsafe { Module::deserialize(&engine, &precompiled).expect("Failed to load module") };
 
@@ -420,8 +477,17 @@ pub fn load_instance() -> (Instance, Store<ClarityWasmContext>) {
     // We create a new instance and pass in any imported (host) functions.
     (
         Instance::new(&mut store, &module, &imports).expect("Couldn't create new module instance"),
-        store
+        store,
     )
+}
+
+fn define_drop_ptr_rustref(module: &mut walrus::Module) -> WasmFunctionMapping {
+    use walrus::ValType;
+
+    let drop_ptr_ty = module.types.add(&[ValType::I32], &[]);
+
+    let (function_id, _) = module.add_import_func("clarity", "drop_ptr_rustref", drop_ptr_ty);
+    WasmFunctionMapping::new_import("drop_ptr_rustref", function_id)
 }
 
 /// ================================================================================
@@ -469,10 +535,9 @@ fn define_mul_rustref(module: &mut walrus::Module) -> WasmFunctionMapping {
     use walrus::ValType;
 
     // Import the API definition for `mul_rustref`.
-    let mul_rustref_ty = module.types.add(
-        &[ValType::I32, ValType::I32],
-        &[ValType::I32],
-    );
+    let mul_rustref_ty = module
+        .types
+        .add(&[ValType::I32, ValType::I32], &[ValType::I32]);
 
     let (function_id, _) = module.add_import_func("clarity", "mul_rustref", mul_rustref_ty);
     WasmFunctionMapping::new_import("mul_rustref", function_id)
@@ -565,10 +630,9 @@ fn define_add_rustref(module: &mut walrus::Module) -> WasmFunctionMapping {
     use walrus::ValType;
 
     // Import the API definition for `add_rustref`.
-    let add_rustref_ty = module.types.add(
-        &[ValType::I32, ValType::I32],
-        &[ValType::I32],
-    );
+    let add_rustref_ty = module
+        .types
+        .add(&[ValType::I32, ValType::I32], &[ValType::I32]);
 
     let (function_id, _) = module.add_import_func("clarity", "add_rustref", add_rustref_ty);
     WasmFunctionMapping::new_import("add_rustref", function_id)
@@ -735,7 +799,7 @@ fn define_add_square_extref_test(
         &[ValType::Externref],
     );
 
-    let a = module.locals.add(ValType::Externref);
+    /*let a = module.locals.add(ValType::Externref);
     let b = module.locals.add(ValType::Externref);
 
     add_square_extref
@@ -744,7 +808,26 @@ fn define_add_square_extref_test(
         .local_get(a)
         .call(mul_extref_id)
         .local_get(b)
-        .call(add_extref_id);
+        .call(add_extref_id);*/
+
+    let a = module.locals.add(ValType::Externref);
+    let b = module.locals.add(ValType::Externref);
+    let mul_result = module.locals.add(ValType::Externref);
+    let add_result = module.locals.add(ValType::Externref);
+
+    add_square_extref
+        .func_body()
+        .local_get(a)
+        .local_get(a)
+        // Call multiply and store the result in c
+        .call(mul_extref_id)
+        .local_set(mul_result)
+        .local_get(mul_result)
+        .local_get(b)
+        .call(add_extref_id)
+        .local_set(add_result)
+        //.call(drop_id)
+        .local_get(add_result);
 
     let add_square_extref_id = add_square_extref.finish(vec![a, b], &mut module.funcs);
     module
@@ -784,7 +867,8 @@ fn define_fold_add_square_extref_test(
         .local_get(init)
         .call(fold_extref_id);
 
-    let fold_add_square_extref_id = fold_add_square_extref.finish(vec![list, init], &mut module.funcs);
+    let fold_add_square_extref_id =
+        fold_add_square_extref.finish(vec![list, init], &mut module.funcs);
     module
         .exports
         .add("fold_add_square_extref_test", fold_add_square_extref_id);
@@ -802,6 +886,7 @@ fn define_add_square_rustref_test(
 
     let mul_rustref_id = funcs.get_by_name("mul_rustref").unwrap().function_id;
     let add_rustref_id = funcs.get_by_name("add_rustref").unwrap().function_id;
+    let drop_ptr_id = funcs.get_by_name("drop_ptr_rustref").unwrap().function_id;
 
     let mut add_square_rustref = FunctionBuilder::new(
         &mut module.types,
@@ -811,14 +896,23 @@ fn define_add_square_rustref_test(
 
     let a = module.locals.add(ValType::I32);
     let b = module.locals.add(ValType::I32);
+    let mul_result = module.locals.add(ValType::I32);
+    let add_result = module.locals.add(ValType::I32);
 
     add_square_rustref
         .func_body()
         .local_get(a)
         .local_get(a)
+        // Call multiply and store the result in c
         .call(mul_rustref_id)
+        .local_set(mul_result)
+        .local_get(mul_result)
         .local_get(b)
-        .call(add_rustref_id);
+        .call(add_rustref_id)
+        .local_set(add_result)
+        .local_get(mul_result)
+        .call(drop_ptr_id)
+        .local_get(add_result);
 
     let add_square_rustref_id = add_square_rustref.finish(vec![a, b], &mut module.funcs);
     module
@@ -848,17 +942,18 @@ fn define_fold_add_square_rustref_test(
         &[ValType::I32],
     );
 
-    let list = module.locals.add(ValType::I32);
-    let init = module.locals.add(ValType::I32);
+    let list_ptr = module.locals.add(ValType::I32);
+    let init_ptr = module.locals.add(ValType::I32);
 
     fold_add_square_rustref
         .func_body()
         .ref_func(add_square_rustref_id)
-        .local_get(list)
-        .local_get(init)
+        .local_get(list_ptr)
+        .local_get(init_ptr)
         .call(fold_rustref_id);
 
-    let fold_add_square_rustref_id = fold_add_square_rustref.finish(vec![list, init], &mut module.funcs);
+    let fold_add_square_rustref_id =
+        fold_add_square_rustref.finish(vec![list_ptr, init_ptr], &mut module.funcs);
     module
         .exports
         .add("fold_add_square_rustref_test", fold_add_square_rustref_id);
