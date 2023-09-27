@@ -7,7 +7,7 @@ pub struct FrameResult {}
 pub struct Stack {
     current_local_idx: UnsafeCell<i32>,
     next_frame_idx: UnsafeCell<usize>,
-    locals: UnsafeCell<Vec<Option<Value>>>,
+    locals: UnsafeCell<Vec<*const Value>>,
     frames: UnsafeCell<Vec<FrameContext>>,
 }
 
@@ -84,7 +84,7 @@ impl Stack {
             frames: UnsafeCell::new(Vec::with_capacity(100)),
         };
 
-        stack.locals.get_mut().fill(None);
+        stack.locals.get_mut().fill(std::ptr::null());
         stack
     }
 
@@ -197,8 +197,11 @@ impl Stack {
         unsafe {
             let current_idx = self.current_local_idx.get();
             let idx = *current_idx;
-            let heap_locals = &mut *self.locals.get();
-            heap_locals.push(Some(value));
+            let ptr = &value as *const Value;
+            //println!("[local_push] index={}, value={:?}, ptr={:?}", idx, &value, ptr);
+
+            (&mut *self.locals.get())
+                .push(ptr);
 
             *current_idx += 1;
             idx
@@ -208,14 +211,27 @@ impl Stack {
     #[inline]
     fn local_drop(&self, ptr: i32) {
         unsafe {
-            (&mut *self.locals.get())[ptr as usize] = None;
+            (&mut *self.locals.get())[ptr as usize] = std::ptr::null();
             //(&mut *self.tombstoned_ptrs.get()).push(ptr);
         }
     }
 
     #[inline]
     fn local_get(&self, ptr: i32) -> Option<&Value> {
-        unsafe { (*self.locals.get())[ptr as usize].as_ref() }
+        unsafe { 
+            let raw_ptr = (*self.locals.get())[ptr as usize];
+            //println!("[local_get] ptr={}, raw_ptr={:?}", ptr, raw_ptr);
+
+            if raw_ptr == std::ptr::null() {
+                //println!("[local_get] NULL");
+                None
+            } else {
+                //println!("[local_get] Pointer not null, retrieving value...");
+                let val = &*raw_ptr;
+                //println!("[local_get] val={:?}", val);
+                Some(val)
+            }
+        }
     }
 
     #[inline]
@@ -261,6 +277,9 @@ mod test {
             f.push(Value::UInt(13));
             f.push(Value::UInt(14));
             f.push(Value::UInt(15));
+
+            let val = stack.local_get(5);
+            println!("val: {:?}", val);
 
             // return dummy value
             Vec::default()
