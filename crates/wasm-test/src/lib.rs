@@ -171,7 +171,7 @@ impl ValuesContext {
 pub struct ClarityWasmContext {
     pub alloc: WasmAllocator,
     pub values: ValuesContext,
-    pub stack: Stack
+    pub stack: Stack,
 }
 
 impl Default for ClarityWasmContext {
@@ -179,7 +179,7 @@ impl Default for ClarityWasmContext {
         Self {
             alloc: WasmAllocator::default(),
             values: ValuesContext::default(),
-            stack: Stack::new()
+            stack: Stack::new(),
         }
     }
 }

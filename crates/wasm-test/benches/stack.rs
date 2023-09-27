@@ -1,22 +1,20 @@
-use std::time::Duration;
 use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
+use std::time::Duration;
 use wasm_test::runtime::stack::*;
 
-criterion_group!{
+criterion_group! {
     name = stack_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(5));
-    targets = 
-        local_push, 
+    targets =
+        local_push,
         push_1_local_from_frame,
         push_2_locals_from_frame,
         push_2_locals_from_frame,
         push_5_locals_from_frame
 }
 
-criterion_main!(
-    stack_benches,
-);
+criterion_main!(stack_benches,);
 
 pub fn local_push(c: &mut Criterion) {
     c.bench_function("stack/push/i128", move |b| {
@@ -41,7 +39,8 @@ pub fn push_1_local_from_frame(c: &mut Criterion) {
         let frame = stack.as_frame();
         let mut results = Vec::<i32>::new();
 
-        b.iter_batched(|| {
+        b.iter_batched(
+            || {
                 frame.clear();
             },
             |_| {
@@ -49,8 +48,8 @@ pub fn push_1_local_from_frame(c: &mut Criterion) {
                     frame.push(Value::Int(5));
                     vec![]
                 });
-            }, 
-            criterion::BatchSize::SmallInput
+            },
+            criterion::BatchSize::SmallInput,
         );
     });
 }
@@ -60,17 +59,18 @@ pub fn push_2_locals_from_frame(c: &mut Criterion) {
         let stack = Stack::new();
         let mut results = Vec::<i32>::new();
 
-        b.iter_batched(|| {
+        b.iter_batched(
+            || {
                 stack.clear_locals();
             },
             |_| {
-                stack.exec(&mut results,|frame: StackFrame| {
+                stack.exec(&mut results, |frame: StackFrame| {
                     frame.push(Value::Int(1));
                     frame.push(Value::Int(2));
                     vec![]
                 });
-            }, 
-            criterion::BatchSize::SmallInput
+            },
+            criterion::BatchSize::SmallInput,
         );
     });
 }
@@ -80,11 +80,12 @@ pub fn push_5_locals_from_frame(c: &mut Criterion) {
         let stack = Stack::new();
         let mut results = Vec::<i32>::new();
 
-        b.iter_batched(|| {
+        b.iter_batched(
+            || {
                 stack.clear_locals();
             },
             |_| {
-                stack.exec(&mut results,|frame: StackFrame| {
+                stack.exec(&mut results, |frame: StackFrame| {
                     frame.push(Value::Int(1));
                     frame.push(Value::Int(2));
                     frame.push(Value::Int(3));
@@ -92,8 +93,8 @@ pub fn push_5_locals_from_frame(c: &mut Criterion) {
                     frame.push(Value::Int(5));
                     vec![]
                 });
-            }, 
-            criterion::BatchSize::SmallInput
+            },
+            criterion::BatchSize::SmallInput,
         );
     });
 }
