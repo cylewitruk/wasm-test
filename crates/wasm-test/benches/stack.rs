@@ -20,14 +20,14 @@ criterion_main!(
 pub fn local_push(c: &mut Criterion) {
     c.bench_function("stack/push/i128", move |b| {
         let stack = Stack::new();
-        let frame = Frame::new(&stack, 1, 0, 0, None);
+        let frame = stack.as_frame();
 
         b.iter_batched(
             || {
-                stack.clear_locals();
+                frame.clear();
             },
             |_| {
-                stack.local_push(Value::Int(5));
+                frame.push(Value::Int(5));
             },
             criterion::BatchSize::SmallInput,
         );
@@ -53,17 +53,18 @@ pub fn exec_single_frame(c: &mut Criterion) {
 }
 
 pub fn push_single_local_from_frame(c: &mut Criterion) {
-    c.bench_function("stack/push_from_frame", move |b| {
+    c.bench_function("stack/push_single_local_from_frame", move |b| {
         let stack = Stack::new();
+        let frame = stack.as_frame();
         let mut results = Vec::<Value>::new();
 
         b.iter_batched(|| {
-                stack.clear_locals();
+                frame.clear();
             },
             |_| {
-                stack.exec(&mut results, |frame| {
-                    frame.local_push(Value::Int(5));
-                    &[]
+                stack.exec2(&mut results, |frame: StackFrame| {
+                    frame.push(Value::Int(5));
+                    vec![]
                 });
             }, 
             criterion::BatchSize::SmallInput
@@ -72,7 +73,7 @@ pub fn push_single_local_from_frame(c: &mut Criterion) {
 }
 
 pub fn push_five_locals_from_frame(c: &mut Criterion) {
-    c.bench_function("stack/push_from_frame", move |b| {
+    c.bench_function("stack/push_five_locals_from_frame", move |b| {
         let stack = Stack::new();
         let mut results = Vec::<Value>::new();
 
@@ -80,13 +81,13 @@ pub fn push_five_locals_from_frame(c: &mut Criterion) {
                 stack.clear_locals();
             },
             |_| {
-                stack.exec(&mut results,|frame| {
-                    frame.local_push(Value::Int(1));
-                    frame.local_push(Value::Int(2));
-                    frame.local_push(Value::Int(3));
-                    frame.local_push(Value::Int(4));
-                    frame.local_push(Value::Int(5));
-                    &[]
+                stack.exec2(&mut results,|frame: StackFrame| {
+                    frame.push(Value::Int(1));
+                    frame.push(Value::Int(2));
+                    frame.push(Value::Int(3));
+                    frame.push(Value::Int(4));
+                    frame.push(Value::Int(5));
+                    vec![]
                 });
             }, 
             criterion::BatchSize::SmallInput

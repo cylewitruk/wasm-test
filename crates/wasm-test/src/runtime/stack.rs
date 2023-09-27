@@ -15,7 +15,21 @@ pub struct Stack {
 pub struct StackFrame<'a>(&'a Stack);
 
 impl StackFrame<'_> {
-    pub fn foo(&self) {}
+    pub fn push(&self, value: Value) -> i32 {
+        self.0.local_push(value)
+    }
+
+    pub fn get(&self, ptr: i32) -> Option<&Value> {
+        self.0.local_get(ptr)
+    }
+
+    pub fn drop(&self, ptr: i32) {
+        self.0.local_drop(ptr)
+    }
+
+    pub fn clear(&self) {
+        self.0.clear_locals()
+    }
 }
 
 pub trait AsFrame {
@@ -71,12 +85,15 @@ impl Stack {
     }
 
     #[inline]
-    pub fn exec2<'a, F: AsFrame>(
+    pub fn exec2<'a>(
         &self,
         results: &mut [Value],
-        func: impl Fn(F) -> Vec<Value>
+        // Added the for<> below just as a reminder in case we use lifetimes later
+        func: impl for<> Fn(StackFrame) -> Vec<Value>
     ) -> FrameResult {
-        todo!()
+        let frame = self.as_frame();
+        func(frame);
+        FrameResult {  }
     }
 
     #[inline]
@@ -105,7 +122,7 @@ impl Stack {
     }
 
     #[inline]
-    pub fn local_push<'a>(&self, value: Value) -> i32 {
+    fn local_push<'a>(&self, value: Value) -> i32 {
         unsafe {
             let current_idx = self.current_local_idx.get();
             let idx = *current_idx;
@@ -124,7 +141,7 @@ impl Stack {
     }
 
     #[inline]
-    pub fn local_drop(&self, ptr: i32) {
+    fn local_drop(&self, ptr: i32) {
         unsafe {
             if ptr < STACK_OVERFLOW_THRESHOLD {
                 (&mut *self.locals_stack.get())[ptr as usize] = None;
@@ -136,7 +153,7 @@ impl Stack {
     }
 
     #[inline]
-    pub fn local_get(&self, ptr: i32) -> Option<&Value> {
+    fn local_get(&self, ptr: i32) -> Option<&Value> {
         unsafe {
             if ptr < STACK_OVERFLOW_THRESHOLD {
                 (*self.locals_stack.get())[ptr as usize].as_ref()
@@ -260,7 +277,7 @@ mod test {
         let mut results = Vec::<Value>::new();
 
         stack.exec2(&mut results, |f: StackFrame| {
-            f.foo();
+            f.push(Value::Int(5000));
             Vec::default()
         });
 
