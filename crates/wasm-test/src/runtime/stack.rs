@@ -1,104 +1,212 @@
-use std::{cell::{RefCell, Cell}, ops::Add};
-
+use std::cell::UnsafeCell;
 use clarity::vm::Value;
 
-#[derive(Debug, Clone)]
+const STACK_OVERFLOW_THRESHOLD: i32 = 10;
+
+#[derive(Debug)]
 pub struct Stack {
-    locals: RefCell<Vec<Option<Value>>>,
-    current_frame_id: RefCell<u32>,
-    tombstoned_ptrs: RefCell<Vec<i32>>
+    current_local_idx: UnsafeCell<i32>,
+    locals_heap: UnsafeCell<Vec<Option<Value>>>,
+    locals_stack: UnsafeCell<[Option<Value>; STACK_OVERFLOW_THRESHOLD as usize]>,
+    current_frame_id: UnsafeCell<u32>,
+    tombstoned_ptrs: UnsafeCell<Vec<i32>>,
+}
+
+pub struct StackFrame<'a>(&'a Stack);
+
+impl StackFrame<'_> {
+    pub fn foo(&self) {}
+}
+
+pub trait AsFrame {
+    fn as_frame(&self) -> StackFrame;
+}
+
+impl AsFrame for Stack {
+    #[inline]
+    fn as_frame(&self) -> StackFrame {
+        StackFrame(self)
+    }
+}
+
+impl AsFrame for StackFrame<'_> {
+    fn as_frame(&self) -> StackFrame {
+        StackFrame(&*self.0)
+    }
 }
 
 impl Stack {
     #[inline]
     pub fn new() -> Self {
-        Stack {
-            locals: Default::default(),
-            current_frame_id: RefCell::new(100000),
-            tombstoned_ptrs: Default::default()
-        }
+        let mut stack = Self {
+            current_local_idx: UnsafeCell::new(0),
+            locals_heap: UnsafeCell::new(Vec::with_capacity(1000)),
+            locals_stack: UnsafeCell::new(Default::default()),
+            current_frame_id: UnsafeCell::new(100000),
+            tombstoned_ptrs: UnsafeCell::new(Vec::with_capacity(1000))
+        };
+
+        stack.locals_heap.get_mut().fill(None);
+
+        stack
     }
 
     #[inline]
-    pub fn exec(&self, func: impl Fn(Frame)) -> FrameResult {
-        let frame = Frame::new(self.next_frame_id(), self, None);
+    pub fn exec(
+        &self, 
+        results: &mut [Value], // Exec returns the actual deref'd [`Value`]'s.
+        func: impl Fn(Frame) -> &[i32] // The closure returns pointers.
+    ) -> FrameResult {
+        let frame = unsafe { 
+            Frame::new(
+                self, 
+                self.next_frame_id(), 
+                0, 
+                0, 
+                None) 
+        };
         func(frame);
         
         FrameResult {  }
     }
 
     #[inline]
-    fn next_frame_id(&self) -> u32 {
-        let next_frame_id = *self.current_frame_id.borrow_mut();
-        self.current_frame_id.replace(next_frame_id + 1);
+    pub fn exec2<'a, F: AsFrame>(
+        &self,
+        results: &mut [Value],
+        func: impl Fn(F) -> Vec<Value>
+    ) -> FrameResult {
+        todo!()
+    }
+
+    #[inline]
+    unsafe fn next_frame_id(&self) -> u32 {
+        let current_frame_id = self.current_frame_id.get();
+        let next_frame_id = *current_frame_id;
+        *current_frame_id += 1;
         next_frame_id
     }
 
     #[inline]
     fn tombstone<'a>(&self, frame: &'a Frame<'_>) {
-        println!("Tombstoning frame: {}", frame.id);
-        println!("This frame has {} pointers to clean up.", frame.pointers.borrow().len());
+        //println!("Tombstoning frame: {}", frame.id);
+        //println!("This frame has {} pointers to clean up.", frame.pointers.borrow().len());
 
-        frame.pointers
-            .borrow()
-            .iter()
-            .for_each(|ptr| self.locals.borrow_mut()[*ptr as usize] = None);
+        unsafe {
+            let locals = &mut *self.locals_heap.get();
 
-        self.tombstoned_ptrs
-            .borrow_mut()
-            .append(&mut frame.pointers.borrow_mut());
+            for ptr in (&*frame.pointers.get()).iter() {
+                locals[*ptr as usize] = None;
+            }
+
+            //(&mut *self.tombstoned_ptrs.get())
+            //    .append(&mut *frame.pointers.get());
+        }
     }
 
     #[inline]
     pub fn local_push<'a>(&self, value: Value) -> i32 {
-        let ptr = self.locals.borrow().len() as i32;
+        unsafe {
+            let current_idx = self.current_local_idx.get();
+            let idx = *current_idx;
 
-        self.locals
-            .borrow_mut()
-            .push(Some(value));
+            if *current_idx < STACK_OVERFLOW_THRESHOLD {
+                let stack_locals = &mut *self.locals_stack.get();
+                stack_locals[idx as usize] = Some(value);
+            } else {
+                let heap_locals = &mut *self.locals_heap.get();
+                heap_locals.push(Some(value));
+            };
 
-        ptr
+            *current_idx += 1;
+            idx
+        }
     }
 
     #[inline]
     pub fn local_drop(&self, ptr: i32) {
-        self.locals.borrow_mut()[ptr as usize] = None;
-        self.tombstoned_ptrs.borrow_mut().push(ptr);
+        unsafe {
+            if ptr < STACK_OVERFLOW_THRESHOLD {
+                (&mut *self.locals_stack.get())[ptr as usize] = None;
+            } else {
+                (&mut *self.locals_heap.get())[ptr as usize] = None;
+            }
+            //(&mut *self.tombstoned_ptrs.get()).push(ptr);
+        }
+    }
+
+    #[inline]
+    pub fn local_get(&self, ptr: i32) -> Option<&Value> {
+        unsafe {
+            if ptr < STACK_OVERFLOW_THRESHOLD {
+                (*self.locals_stack.get())[ptr as usize].as_ref()
+            } else {
+                (*self.locals_heap.get())[ptr as usize].as_ref()
+            }
+        }
     }
 
     #[inline]
     pub fn clear_locals(&self) {
-        self.locals.borrow_mut().clear();
-        self.tombstoned_ptrs.borrow_mut().clear();
+        unsafe {
+            (&mut *self.locals_heap.get()).clear();
+            //(&mut *self.tombstoned_ptrs.get()).clear();
+        }
     }
 }
 
-#[derive(Debug, Clone)]
+pub trait FrameTrait {
+    fn push(&self, value: Value) -> i32;
+}
+
+impl FrameTrait for Stack {
+    fn push(&self, value: Value) -> i32 {
+        self.local_push(value)
+    }
+}
+
+#[derive(Debug)]
 pub struct Frame<'a> {
-    id: u32,
     stack: &'a Stack,
+    id: u32,
+    arg_count: u8,
+    result_count: u8,
     ancestor: Option<&'a Frame<'a>>,
-    pointers: RefCell<Vec<i32>>
+    pointers: UnsafeCell<Vec<i32>>,
+    
 }
 
 impl<'a> Frame<'_> {
     #[inline]
     pub fn new(
-        id: u32, 
-        stack: &'a Stack, 
+        stack: &'a Stack,
+        id: u32,
+        arg_count: u8,
+        result_count: u8,
         ancestor: Option<&'a Frame<'a>>
     ) -> Frame<'a> {
         Frame {
-            id,
             stack,
+            id,
+            arg_count,
+            result_count,
             ancestor: ancestor.map(|frame| frame),
             pointers: Default::default()
         }
     }
 
     #[inline]
-    pub fn frame(&'a self, func: impl Fn(Frame)) -> FrameResult {
-        let frame = Frame::new(self.stack.next_frame_id(), self.stack, Some(self));
+    pub fn frame(&'a self, arg_count: u8, result_count: u8, func: impl Fn(Frame)) -> FrameResult {
+        let frame = unsafe { 
+            Frame::new(
+                self.stack,
+                self.stack.next_frame_id(),
+                arg_count,
+                result_count,
+                Some(self)
+            ) 
+        };
+
         func(frame);
         FrameResult {  }
     }
@@ -106,15 +214,22 @@ impl<'a> Frame<'_> {
     #[inline]
     pub fn local_push(&self, value: Value) -> i32 {
         let ptr = self.stack.local_push(value);
-        self.pointers.borrow_mut().push(ptr);
+        //unsafe { 
+        //    (&mut *self.pointers.get()).push(ptr)
+        //};
         ptr
+    }
+
+    #[inline]
+    pub fn local_get(&self, ptr: i32) -> Option<&Value> {
+        self.stack.local_get(ptr)
     }
 }
 
 impl<'a> Drop for Frame<'_> {
     #[inline]
     fn drop(&mut self) {
-       self.stack.tombstone(self);
+       //self.stack.tombstone(self);
     }
 }
 
@@ -122,28 +237,63 @@ pub struct FrameResult {
 
 }
 
+macro_rules! push {
+    ($frame:ident, $value:expr) => {
+        $frame.local_push($value);
+    };
+}
+
+macro_rules! get {
+    ($frame:ident, $ptr:literal) => {
+        $frame.local_get($ptr);
+    }
+}
+
 #[cfg(test)]
 mod test {
     use clarity::vm::Value;
-    use super::Stack;
+    use super::{Stack, FrameTrait, StackFrame, AsFrame};
 
     #[test]
     fn test() {
         let stack = Stack::new();
-        let result = stack.exec(|f1| {
-            f1.local_push(Value::Int(1));
-            f1.local_push(Value::Int(2));
-            f1.local_push(Value::Int(3));
-            eprintln!("frame1: {:?}", f1);
-            f1.frame(|f2| {
-                eprintln!("frame2: {:?}", f2);
-                f2.local_push(Value::Int(5));
-            });
+        let mut results = Vec::<Value>::new();
+
+        stack.exec2(&mut results, |f: StackFrame| {
+            f.foo();
+            Vec::default()
         });
 
-        
+        let result = stack.exec(&mut results, |f| {
+            f.local_push(Value::Int(1));
+            f.local_push(Value::Int(2));
+            f.local_push(Value::Int(3));
+            f.local_push(Value::Int(4));
+            f.local_push(Value::Int(5));
+            let ptr = push!(f, Value::UInt(100));
+            let x = get!(f, 5);
+            eprintln!("x: {:?}", x);
+            eprintln!("frame1: {:?}", f);
+            f.frame(0, 0, |f2| {
+                eprintln!("frame2: {:?}", f2);
+                f2.local_push(Value::Int(6));
+                f2.local_push(Value::Int(7));
+                f2.local_push(Value::Int(8));
+                f2.local_push(Value::Int(9));
+                f2.local_push(Value::Int(10));
+            });
+            f.local_push(Value::UInt(11));
+            f.local_push(Value::UInt(12));
+            f.local_push(Value::UInt(13));
+            f.local_push(Value::UInt(14));
+            f.local_push(Value::UInt(15));
+            &[1, 2]
+        });
 
-        eprintln!("stack: {:?}", stack);
+        unsafe {
+            eprintln!("stack locals: {:?}", *stack.locals_stack.get());
+            eprintln!("heap locals: {:?}", *stack.locals_heap.get());
+        }
         
     }
 }

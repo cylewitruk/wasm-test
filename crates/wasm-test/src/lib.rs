@@ -167,7 +167,7 @@ impl ValuesContext {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ClarityWasmContext {
     pub alloc: WasmAllocator,
     pub values: ValuesContext,

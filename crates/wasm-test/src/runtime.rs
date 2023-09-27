@@ -1,5 +1,6 @@
 pub(crate) mod alloc;
 pub(crate) mod objpool;
+#[macro_use]
 pub mod stack;
 
 pub mod native_functions;

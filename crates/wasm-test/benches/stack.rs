@@ -20,7 +20,7 @@ criterion_main!(
 pub fn local_push(c: &mut Criterion) {
     c.bench_function("stack/push/i128", move |b| {
         let stack = Stack::new();
-        let frame = Frame::new(1, &stack, None);
+        let frame = Frame::new(&stack, 1, 0, 0, None);
 
         b.iter_batched(
             || {
@@ -37,12 +37,15 @@ pub fn local_push(c: &mut Criterion) {
 pub fn exec_single_frame(c: &mut Criterion) {
     c.bench_function("stack/exec-single-frame", move |b| {
         let stack = Stack::new();
+        let mut results = Vec::<Value>::new();
 
         b.iter_batched(|| {
 
             },
             |_| {
-                stack.exec(|_| { })
+                stack.exec(&mut results,|_| { 
+                    &[]
+                })
             }, 
             criterion::BatchSize::SmallInput
         );
@@ -52,13 +55,15 @@ pub fn exec_single_frame(c: &mut Criterion) {
 pub fn push_single_local_from_frame(c: &mut Criterion) {
     c.bench_function("stack/push_from_frame", move |b| {
         let stack = Stack::new();
+        let mut results = Vec::<Value>::new();
 
         b.iter_batched(|| {
                 stack.clear_locals();
             },
             |_| {
-                stack.exec(|frame| {
+                stack.exec(&mut results, |frame| {
                     frame.local_push(Value::Int(5));
+                    &[]
                 });
             }, 
             criterion::BatchSize::SmallInput
@@ -69,17 +74,19 @@ pub fn push_single_local_from_frame(c: &mut Criterion) {
 pub fn push_five_locals_from_frame(c: &mut Criterion) {
     c.bench_function("stack/push_from_frame", move |b| {
         let stack = Stack::new();
+        let mut results = Vec::<Value>::new();
 
         b.iter_batched(|| {
                 stack.clear_locals();
             },
             |_| {
-                stack.exec(|frame| {
+                stack.exec(&mut results,|frame| {
                     frame.local_push(Value::Int(1));
                     frame.local_push(Value::Int(2));
                     frame.local_push(Value::Int(3));
                     frame.local_push(Value::Int(4));
                     frame.local_push(Value::Int(5));
+                    &[]
                 });
             }, 
             criterion::BatchSize::SmallInput
