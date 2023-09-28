@@ -3,43 +3,37 @@ pub(crate) mod alloc;
 pub mod stack;
 
 pub mod native_functions;
+use self::{alloc::WasmAllocator, stack::Stack};
+use crate::ValuesContext;
 pub use native_functions::get_all_functions;
 use wasmtime::Caller;
 
-use crate::ValuesContext;
-
-use self::{alloc::WasmAllocator, stack::Stack};
-
-#[derive(Debug)]
+/// The state object which is available in all Wasmtime host function
+/// calls. This is where information/structures which may be needed
+/// across multiple executions should be placed.
+///
+/// Note: To receive a [ClarityWasmContext] in a host function you must
+/// use one of the `wrap` variants which accepts a Wasmtime [Caller] as
+/// the first argument. Once you have a caller, you get an instance to
+/// the [ClarityWasmContext] by using `caller.data()` or `caller.data_mut()`.
+#[derive(Debug, Default)]
 pub struct ClarityWasmContext {
     pub alloc: WasmAllocator,
     pub values: ValuesContext,
     pub stack: Stack,
 }
 
-impl Default for ClarityWasmContext {
-    fn default() -> Self {
-        Self {
-            alloc: WasmAllocator::default(),
-            values: ValuesContext::default(),
-            stack: Stack::new(),
-        }
-    }
-}
-
-impl ClarityWasmContext {
-    /// Creates a new instance of ClarityWasmContext, the data context which
-    /// is passed around to host functions.
-    pub fn new() -> Self {
-        ClarityWasmContext::default()
-    }
-}
-
+/// A trait which allows a consumer to receive an instance of a [Stack] from
+/// an implementing structure.
 pub trait AsStack {
     fn as_stack(&self) -> &Stack;
 }
 
+/// Implements [AsStack] for Wasmtime's [Caller] so that consumers of
+/// `wrap` functions can easily receive an instance of this [ClarityWasmContext]'s
+/// [Stack].
 impl AsStack for Caller<'_, ClarityWasmContext> {
+    #[inline]
     fn as_stack(&self) -> &Stack {
         &self.data().stack
     }

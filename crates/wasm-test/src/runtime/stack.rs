@@ -29,16 +29,23 @@ impl AsValType for Value {
 /// The external pointer type exposed by [StackFrame] which can be
 /// used to safely work with data behind the pointers.
 #[derive(Debug, Clone, Copy)]
-pub struct HostPtr {
+pub struct HostPtr<'a> {
+    stack: &'a Stack,
     inner: i32,
     val_type: ValType,
 }
 
-impl HostPtr {
-    pub(crate) fn new(inner: i32, val_type: ValType) -> Self {
-        HostPtr { inner, val_type }
+impl<'a> HostPtr<'a> {
+    #[inline]
+    pub(crate) fn new(stack: &'a Stack, inner: i32, val_type: ValType) -> Self {
+        HostPtr {
+            stack,
+            inner,
+            val_type,
+        }
     }
 
+    #[inline]
     pub(crate) fn as_usize(&self) -> usize {
         self.inner as usize
     }
@@ -46,9 +53,10 @@ impl HostPtr {
 
 /// i32 is probably the most commen cast, so we implement implicit deref from
 /// [HostPtr] to [i32].
-impl Deref for HostPtr {
+impl Deref for HostPtr<'_> {
     type Target = i32;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
@@ -88,7 +96,7 @@ impl StackFrame<'_> {
     #[inline]
     pub fn push(&self, value: Value) -> HostPtr {
         let (ptr, val_type) = unsafe { self.0.local_push(value) };
-        HostPtr::new(ptr, val_type)
+        HostPtr::new(self.0, ptr, val_type)
     }
 
     #[inline]
@@ -98,6 +106,7 @@ impl StackFrame<'_> {
 
     #[inline]
     pub fn get(&self, ptr: HostPtr) -> Option<&Value> {
+        assert_eq!(ptr.stack.id, ptr.stack.id);
         unsafe { self.0.local_get(*ptr) }
     }
 
@@ -120,13 +129,6 @@ impl StackFrame<'_> {
     pub fn drop(&self, ptr: HostPtr) {
         self.0.local_drop(ptr)
     }
-
-    /*#[inline]
-    pub fn clear(&self) {
-        unsafe {
-            self.0.clear_locals()
-        }
-    }*/
 }
 
 pub trait AsFrame {
@@ -149,6 +151,7 @@ impl AsFrame for StackFrame<'_> {
 
 #[derive(Debug, Default)]
 pub struct Stack {
+    id: u64,
     current_local_idx: UnsafeCell<i32>,
     next_frame_idx: UnsafeCell<usize>,
     locals: UnsafeCell<Vec<*const Value>>,
@@ -159,6 +162,7 @@ impl Stack {
     #[inline]
     pub fn new() -> Self {
         let mut stack = Self {
+            id: rand::random::<u64>(),
             current_local_idx: UnsafeCell::new(0),
             next_frame_idx: UnsafeCell::new(0),
             locals: UnsafeCell::new(Vec::with_capacity(1000)),
