@@ -10,8 +10,9 @@ criterion_group! {
         local_push,
         push_1_local_from_frame,
         push_2_locals_from_frame,
-        push_2_locals_from_frame,
-        push_5_locals_from_frame
+        push_5_locals_from_frame,
+        push_5000_locals_from_frame,
+        get_1_local_from_frame
 }
 
 criterion_main!(stack_benches,);
@@ -91,6 +92,49 @@ pub fn push_5_locals_from_frame(c: &mut Criterion) {
                     frame.push(Value::Int(3));
                     frame.push(Value::Int(4));
                     frame.push(Value::Int(5));
+                    vec![]
+                });
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
+}
+
+pub fn push_5000_locals_from_frame(c: &mut Criterion) {
+    c.bench_function("stack/push/5 000 locals from frame", move |b| {
+        let stack = Stack::new();
+        let mut results = Vec::<i32>::new();
+
+        b.iter_batched(
+            || {
+                stack.clear_locals();
+            },
+            |_| {
+                stack.exec(&mut results, |frame: StackFrame| {
+                    for i in 0..5000 {
+                        frame.push(Value::Int(i));
+                    }
+                    vec![]
+                });
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
+}
+
+pub fn get_1_local_from_frame(c: &mut Criterion) {
+    c.bench_function("stack/get/one local from frame", move |b| {
+        let stack = Stack::new();
+        let frame = stack.as_frame();
+        frame.push(Value::Int(5));
+        let mut results = Vec::<i32>::new();
+
+        b.iter_batched(
+            || {
+            },
+            |_| {
+                stack.exec(&mut results, |frame: StackFrame| {
+                    frame.get(0);
                     vec![]
                 });
             },

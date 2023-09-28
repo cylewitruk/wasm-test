@@ -3,14 +3,6 @@ use std::cell::UnsafeCell;
 
 pub struct FrameResult {}
 
-#[derive(Debug)]
-pub struct Stack {
-    current_local_idx: UnsafeCell<i32>,
-    next_frame_idx: UnsafeCell<usize>,
-    locals: UnsafeCell<Vec<*const Value>>,
-    frames: UnsafeCell<Vec<FrameContext>>,
-}
-
 #[derive(Debug, Clone)]
 pub struct FrameContext {
     pub frame_index: usize,
@@ -19,6 +11,7 @@ pub struct FrameContext {
 }
 
 impl FrameContext {
+    #[inline]
     pub fn new(frame_index: usize, parent_frame_index: Option<usize>, lower_bound: usize) -> Self {
         Self {
             frame_index,
@@ -74,6 +67,14 @@ impl AsFrame for StackFrame<'_> {
     }
 }
 
+#[derive(Debug)]
+pub struct Stack {
+    current_local_idx: UnsafeCell<i32>,
+    next_frame_idx: UnsafeCell<usize>,
+    locals: UnsafeCell<Vec<*const Value>>,
+    frames: UnsafeCell<Vec<*const FrameContext>>,
+}
+
 impl Stack {
     #[inline]
     pub fn new() -> Self {
@@ -124,7 +125,7 @@ impl Stack {
         );
 
         // Get a mutable reference to our frames vec and push our new context.
-        (&mut *self.frames.get()).push(context);
+        (&mut *self.frames.get()).push(&context as *const _);
 
         (self.as_frame(), index)
     }
@@ -151,7 +152,7 @@ impl Stack {
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
-        (self.current_local_idx.get()).replace((dropped_frame.lower_bound) as i32);
+        (self.current_local_idx.get()).replace(((*dropped_frame).lower_bound) as i32);
     }
 
     /// Returns the index of the current (top) frame in this [Stack].
@@ -220,16 +221,11 @@ impl Stack {
     fn local_get(&self, ptr: i32) -> Option<&Value> {
         unsafe { 
             let raw_ptr = (*self.locals.get())[ptr as usize];
-            //println!("[local_get] ptr={}, raw_ptr={:?}", ptr, raw_ptr);
-
+            
             if raw_ptr == std::ptr::null() {
-                //println!("[local_get] NULL");
                 None
             } else {
-                //println!("[local_get] Pointer not null, retrieving value...");
-                let val = &*raw_ptr;
-                //println!("[local_get] val={:?}", val);
-                Some(val)
+                Some(&*raw_ptr)
             }
         }
     }
