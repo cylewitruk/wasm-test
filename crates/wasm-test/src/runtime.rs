@@ -4,6 +4,7 @@ pub mod stack;
 
 pub mod native_functions;
 pub use native_functions::get_all_functions;
+use wasmtime::Caller;
 
 use crate::ValuesContext;
 
@@ -31,5 +32,15 @@ impl ClarityWasmContext {
     /// is passed around to host functions.
     pub fn new() -> Self {
         ClarityWasmContext::default()
+    }
+}
+
+pub trait AsStack {
+    fn as_stack(&self) -> &Stack;
+}
+
+impl AsStack for Caller<'_, ClarityWasmContext> {
+    fn as_stack(&self) -> &Stack {
+        &self.data().stack
     }
 }

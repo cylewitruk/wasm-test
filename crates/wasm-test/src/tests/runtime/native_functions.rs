@@ -1,7 +1,7 @@
+use crate::tests::runtime::helpers::*;
 use clarity::vm::Value;
 use test_case::test_case;
 use wasmtime::{ExternRef, Val};
-use crate::tests::runtime::helpers::*;
 
 #[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]

@@ -553,7 +553,6 @@ pub fn serialize_clarity_value(value: &Value) -> Result<Vec<u8>, SerializationEr
     Ok(header)
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 pub enum RuntimeError {
     InvalidRuntimeError = -1,

@@ -1,18 +1,17 @@
-use clarity::vm::Value;
-use wasmtime::{Func, Caller};
-use crate::tests::runtime::helpers::*;
+use crate::runtime::AsStack;
 use crate::runtime::{stack::StackFrame, ClarityWasmContext};
-
+use crate::tests::runtime::helpers::*;
+use clarity::vm::Value;
+use wasmtime::{Caller, Func};
 
 /// Test function
 #[test]
 fn test() {
     let mut store = get_new_store();
 
-    let func = Func::wrap(&mut store, move |mut caller: Caller<'_, ClarityWasmContext>| {
-        let stack = &caller.data().stack;
-        stack.exec(&mut Vec::new(),
-        |frame: StackFrame| {
+    let func = Func::wrap(&mut store, move |caller: Caller<'_, ClarityWasmContext>| {
+        let stack = caller.as_stack();
+        stack.exec(&mut Vec::new(), |frame: StackFrame| {
             let ptr1 = frame.push(Value::Int(1));
             let ptr2 = frame.push(Value::UInt(2));
 
@@ -28,6 +27,4 @@ fn test() {
 
     func.call(&mut store, &[], &mut [])
         .expect("Failed to call function");
-
-
 }

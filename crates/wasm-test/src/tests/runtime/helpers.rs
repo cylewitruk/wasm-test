@@ -1,4 +1,4 @@
-use wasmtime::{Store, Config, Engine};
+use wasmtime::{Config, Engine, Store};
 
 use crate::runtime::ClarityWasmContext;
 

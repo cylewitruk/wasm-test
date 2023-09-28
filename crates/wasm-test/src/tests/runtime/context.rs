@@ -1,5 +1,5 @@
-use clarity::vm::Value;
 use crate::tests::runtime::helpers::*;
+use clarity::vm::Value;
 
 #[test]
 fn test_new_ptr() {

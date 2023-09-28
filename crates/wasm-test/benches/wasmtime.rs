@@ -3,7 +3,9 @@ use std::{cell::RefCell, time::Duration};
 use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
 use walrus::FunctionId;
-use wasm_test::{get_all_functions, serialization::serialize_clarity_value, runtime::ClarityWasmContext};
+use wasm_test::{
+    get_all_functions, runtime::ClarityWasmContext, serialization::serialize_clarity_value,
+};
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
 criterion_group!(

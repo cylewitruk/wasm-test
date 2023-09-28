@@ -1,23 +1,27 @@
 use clarity::vm::Value;
 use std::{cell::UnsafeCell, ops::Deref};
 
+/// Value type indicator, indicating the type of Clarity [Value] a given
+/// [HostPtr] is pointing to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ValType {
     Int128,
-    UInt128
+    UInt128,
 }
 
+/// A simple trait to map a [Value] to a [ValType] with clean semantics.
 pub trait AsValType {
     fn as_val_type(&self) -> ValType;
 }
 
+/// Implement [AsValType] for Clarity's [Value].
 impl AsValType for Value {
     fn as_val_type(&self) -> ValType {
         match self {
             Value::Int(_) => ValType::Int128,
             Value::UInt(_) => ValType::UInt128,
-            _ => todo!()
+            _ => todo!(),
         }
     }
 }
@@ -27,12 +31,12 @@ impl AsValType for Value {
 #[derive(Debug, Clone, Copy)]
 pub struct HostPtr {
     inner: i32,
-    val_type: ValType
+    val_type: ValType,
 }
 
 impl HostPtr {
     pub(crate) fn new(inner: i32, val_type: ValType) -> Self {
-        HostPtr { inner , val_type }
+        HostPtr { inner, val_type }
     }
 
     pub(crate) fn as_usize(&self) -> usize {
@@ -40,6 +44,8 @@ impl HostPtr {
     }
 }
 
+/// i32 is probably the most commen cast, so we implement implicit deref from
+/// [HostPtr] to [i32].
 impl Deref for HostPtr {
     type Target = i32;
 
@@ -74,28 +80,25 @@ impl FrameContext {
 #[derive(Debug, Clone)]
 pub struct StackFrame<'a>(&'a Stack);
 
-/// Implementation of the public methods for a [StackFrame].
+/// Implementation of the public API for a [StackFrame].
 impl StackFrame<'_> {
+    /// Pushes a new [Value] to the top of the [Stack] and returns a safe
+    /// [HostPtr] pointer which can be used to retrieve the [Value] at
+    /// a later time.
     #[inline]
     pub fn push(&self, value: Value) -> HostPtr {
-        let (ptr, val_type) = unsafe {
-            self.0.local_push(value)
-        };
+        let (ptr, val_type) = unsafe { self.0.local_push(value) };
         HostPtr::new(ptr, val_type)
     }
 
     #[inline]
     pub fn push_unchecked(&self, value: Value) -> i32 {
-        unsafe {
-            self.0.local_push(value).0
-        }
+        unsafe { self.0.local_push(value).0 }
     }
 
     #[inline]
     pub fn get(&self, ptr: HostPtr) -> Option<&Value> {
-        unsafe {
-            self.0.local_get(*ptr)
-        }
+        unsafe { self.0.local_get(*ptr) }
     }
 
     #[inline]
@@ -108,10 +111,12 @@ impl StackFrame<'_> {
         self.0.local_drop(ptr)
     }
 
-    #[inline]
+    /*#[inline]
     pub fn clear(&self) {
-        self.0.clear_locals()
-    }
+        unsafe {
+            self.0.clear_locals()
+        }
+    }*/
 }
 
 pub trait AsFrame {
@@ -268,8 +273,7 @@ impl Stack {
             let ptr = &value as *const Value;
             //println!("[local_push] index={}, value={:?}, ptr={:?}", idx, &value, ptr);
 
-            (&mut *self.locals.get())
-                .push(ptr);
+            (&mut *self.locals.get()).push(ptr);
 
             *current_idx += 1;
             (idx, val_type)
@@ -286,9 +290,9 @@ impl Stack {
 
     #[inline]
     unsafe fn local_get(&self, ptr: i32) -> Option<&Value> {
-        unsafe { 
+        unsafe {
             let raw_ptr = (*self.locals.get())[ptr as usize];
-            
+
             if raw_ptr == std::ptr::null() {
                 None
             } else {
@@ -298,7 +302,7 @@ impl Stack {
     }
 
     #[inline]
-    pub fn clear_locals(&self) {
+    pub unsafe fn clear_locals(&self) {
         unsafe {
             (&mut *self.locals.get()).clear();
             //(&mut *self.tombstoned_ptrs.get()).clear();

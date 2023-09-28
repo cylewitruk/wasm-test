@@ -5,8 +5,8 @@
 
 use crate::serialization::{
     deserialize_clarity_seq_to_ptrs, deserialize_clarity_value,
-    get_type_indicator_from_serialized_value, serialize_clarity_value, TypeIndicator, HEADER_LEN, FuncResultMemory, RuntimeError,
-    FuncResultMemoryTrait
+    get_type_indicator_from_serialized_value, serialize_clarity_value, FuncResultMemory,
+    FuncResultMemoryTrait, RuntimeError, TypeIndicator, HEADER_LEN,
 };
 use clarity::vm::{
     types::{CharType, SequenceData},
@@ -15,7 +15,6 @@ use clarity::vm::{
 use wasmtime::{AsContext, AsContextMut, Caller, ExternRef, Func, Val};
 
 use super::ClarityWasmContext;
-
 
 /// Holds a native function name and function implementation.
 #[derive(Debug)]
