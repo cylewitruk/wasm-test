@@ -5,8 +5,8 @@ use super::{wasm_generator::WasmGenerator, WasmGenerationResult};
 impl WasmGenerator {
     pub(crate) fn visit_add(
         &mut self,
-        expr: &SymbolicExpression,
-        operands: &[SymbolicExpression],
+        _expr: &SymbolicExpression,
+        _operands: &[SymbolicExpression],
     ) -> WasmGenerationResult {
         println!("==> visit_add()");
         Ok(())
@@ -34,8 +34,8 @@ impl WasmGenerator {
 
     pub(crate) fn visit_define_constant(
         &self,
-        name: &ClarityName,
-        expr: &[SymbolicExpression],
+        _name: &ClarityName,
+        _expr: &[SymbolicExpression],
     ) -> WasmGenerationResult {
         todo!()
     }

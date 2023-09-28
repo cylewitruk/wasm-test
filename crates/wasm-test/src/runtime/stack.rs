@@ -101,6 +101,16 @@ impl StackFrame<'_> {
         unsafe { self.0.local_get(*ptr) }
     }
 
+    /// Gets a value from this [Stack] by [i32] pointer.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because there are no checks that the [i32] pointer
+    /// is:
+    /// 1. A valid index in the backing [Vec]. If the index is out of bounds then
+    /// an out-of-bounds panic will be thrown.
+    /// 2. That a raw pointer held in the backing [Vec] is indeed pointing to the
+    /// correct value.
     #[inline]
     pub unsafe fn get_unchecked(&self, ptr: i32) -> Option<&Value> {
         self.0.local_get(ptr)
@@ -133,7 +143,7 @@ impl AsFrame for Stack {
 impl AsFrame for StackFrame<'_> {
     #[inline]
     fn as_frame(&self) -> StackFrame {
-        StackFrame(&*self.0)
+        StackFrame(self.0)
     }
 }
 
@@ -183,7 +193,7 @@ impl Stack {
     unsafe fn new_frame(&self) -> (StackFrame, usize) {
         // Retrieve the index for a new frame and increment the frame index.
         //println!("[new_frame] pre-increment={}", &*self.next_frame_idx.get());
-        let (index, next_index) = self.increment_frame_index();
+        let (index, _) = self.increment_frame_index();
         //println!("[new_frame] index={}, next_index={}", index, next_index);
 
         // Create a new frame context, which stores a little bit of information
@@ -195,7 +205,7 @@ impl Stack {
         );
 
         // Get a mutable reference to our frames vec and push our new context.
-        (&mut *self.frames.get()).push(&context as *const _);
+        (*self.frames.get()).push(&context as *const _);
 
         (self.as_frame(), index)
     }
@@ -207,7 +217,7 @@ impl Stack {
     unsafe fn drop_frame(&self, index: usize) {
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
-        let (dropped_frame_index, current_index) = self.decrement_frame_index();
+        let (dropped_frame_index, _) = self.decrement_frame_index();
         /*eprintln!(
             "[drop frame] index={}, dropped_frame_index={}, current_index={:?}",
             index, dropped_frame_index, current_index
@@ -271,9 +281,8 @@ impl Stack {
             let idx = *current_idx;
             let val_type = value.as_val_type();
             let ptr = &value as *const Value;
-            //println!("[local_push] index={}, value={:?}, ptr={:?}", idx, &value, ptr);
 
-            (&mut *self.locals.get()).push(ptr);
+            (*self.locals.get()).push(ptr);
 
             *current_idx += 1;
             (idx, val_type)
@@ -284,7 +293,6 @@ impl Stack {
     fn local_drop(&self, ptr: HostPtr) {
         unsafe {
             (&mut *self.locals.get())[*ptr as usize] = std::ptr::null();
-            //(&mut *self.tombstoned_ptrs.get()).push(ptr);
         }
     }
 
@@ -293,7 +301,7 @@ impl Stack {
         unsafe {
             let raw_ptr = (*self.locals.get())[ptr as usize];
 
-            if raw_ptr == std::ptr::null() {
+            if raw_ptr.is_null() {
                 None
             } else {
                 Some(&*raw_ptr)
@@ -301,17 +309,22 @@ impl Stack {
         }
     }
 
+    /// Clears all of the locals in this [Stack].
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because clearing the [Stack] while pointers are still
+    /// held by frames would result in UB.
     #[inline]
     pub unsafe fn clear_locals(&self) {
         unsafe {
-            (&mut *self.locals.get()).clear();
-            //(&mut *self.tombstoned_ptrs.get()).clear();
+            (*self.locals.get()).clear();
         }
     }
 
     #[inline]
     pub fn local_count(&self) -> usize {
-        unsafe { (&mut *self.locals.get()).len() }
+        unsafe { (*self.locals.get()).len() }
     }
 }
 

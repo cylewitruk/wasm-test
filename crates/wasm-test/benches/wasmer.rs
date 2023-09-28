@@ -1,11 +1,10 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use mimalloc::MiMalloc;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     use clarity::vm::Value as ClarityValue;
     use wasmer::{
-        imports, Engine, ExternRef, Features, Function, FunctionEnv, FunctionEnvMut, Instance,
-        Module, Store, TypedFunction,
+        imports, ExternRef, Features, Function, FunctionEnv, FunctionEnvMut, Instance, Module,
+        Store, TypedFunction,
     };
     use wasmer_compiler_llvm::LLVM;
 
@@ -69,7 +68,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let native_add_i128_function = Function::new_typed_with_env(
         &mut store,
         &env,
-        |mut env: FunctionEnvMut<()>,
+        |_env: FunctionEnvMut<()>,
          a_low: i64,
          a_high: i64,
          b_low: i64,

@@ -55,7 +55,6 @@ pub fn local_push_unchecked(c: &mut Criterion) {
 pub fn push_1_local_from_frame(c: &mut Criterion) {
     c.bench_function("stack/push/one local from frame", move |b| {
         let stack = Stack::new();
-        let frame = stack.as_frame();
         let mut results = Vec::<i32>::new();
 
         b.iter_batched(

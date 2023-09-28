@@ -90,7 +90,7 @@ fn test_split_free_block() {
 fn test_allocate() {
     let mut alloc = WasmAllocator2::new(256);
 
-    let mut block = alloc.allocate(8);
+    let block = alloc.allocate(8);
     println!("{:?}", block);
 
     let buddy = alloc.find_buddy(0, block).expect("Failed to find buddy");
@@ -101,7 +101,7 @@ fn test_allocate() {
 fn test_find_buddy() {
     let mut alloc = WasmAllocator2::new(256);
 
-    let mut block = alloc.allocate(8);
+    let block = alloc.allocate(8);
     println!("{:?}", block);
 
     let buddy = alloc.find_buddy(0, block).expect("Failed to find buddy");

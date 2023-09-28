@@ -4,8 +4,7 @@
 // order as when imported into the Wasmtime module.
 
 use crate::serialization::{
-    deserialize_clarity_seq_to_ptrs, deserialize_clarity_value,
-    get_type_indicator_from_serialized_value, serialize_clarity_value, FuncResultMemory,
+    deserialize_clarity_seq_to_ptrs, get_type_indicator_from_serialized_value, FuncResultMemory,
     FuncResultMemoryTrait, RuntimeError, TypeIndicator, HEADER_LEN,
 };
 use clarity::vm::{
@@ -268,9 +267,7 @@ pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
                 _ => todo!("Add not implemented for given types"),
             };
 
-            let ptr = data.values.push(result);
-            //eprintln!("[mul] Result ptr: {}", ptr);
-            ptr
+            data.values.push(result)
         },
     )
 }
@@ -353,10 +350,10 @@ pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext
 }
 
 /// Defines the `fold_native` function.
-#[inline]
+/*#[inline]
 pub fn define_fold_native(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     todo!()
-}
+}*/
 
 #[inline]
 pub fn define_fold_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {

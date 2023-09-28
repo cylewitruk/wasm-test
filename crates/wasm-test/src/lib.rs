@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //use mimalloc::MiMalloc;
 
 //#[global_allocator]
@@ -10,11 +12,7 @@ pub mod compiler;
 pub mod runtime;
 pub mod serialization;
 
-//use ahash::AHashMap;
-use fxhash::FxHashMap;
-
-use clarity::{address::b58::from, vm::Value};
-use runtime::{alloc::WasmAllocator, stack::Stack};
+use clarity::vm::Value;
 // Public exports
 pub use runtime::get_all_functions;
 

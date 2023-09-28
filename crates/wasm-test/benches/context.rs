@@ -2,7 +2,7 @@ use clarity::vm::{
     types::{ListData, ListTypeData, SequenceData, TypeSignature},
     Value,
 };
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use wasm_test::runtime::ClarityWasmContext;
 use wasmtime::{Config, Engine, Store};
 
