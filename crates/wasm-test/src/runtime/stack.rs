@@ -36,6 +36,10 @@ pub struct HostPtr<'a> {
 }
 
 impl<'a> HostPtr<'a> {
+    /// Instantiates a new [HostPtr] instance. Note that it is _critical_ that the
+    /// `inner` parameter points to a valid index+reference in the backing [Vec]. 
+    /// Failure to do so will almost certainly result in undefined behavior when trying to
+    /// read back the [Value].
     #[inline]
     pub(crate) fn new(stack: &'a Stack, inner: i32, val_type: ValType) -> Self {
         HostPtr {
@@ -45,6 +49,7 @@ impl<'a> HostPtr<'a> {
         }
     }
 
+    /// Retrieve this [HostPtr] as a [usize].
     #[inline]
     pub(crate) fn as_usize(&self) -> usize {
         self.inner as usize
@@ -64,6 +69,9 @@ impl Deref for HostPtr<'_> {
 
 pub struct FrameResult {}
 
+/// A structure representing a virtual "Stack Frame". Not to be confused with
+/// [StackFrame], which provides the public API for a [Stack]/[StackFrame]. This
+/// structure maintains state regarding the frame in question.
 #[derive(Debug, Clone)]
 pub struct FrameContext {
     pub frame_index: usize,
@@ -71,7 +79,9 @@ pub struct FrameContext {
     pub lower_bound: usize,
 }
 
+/// Implementation of [FrameContext].
 impl FrameContext {
+    /// Instantiates a new [FrameContext] instance.
     #[inline]
     pub fn new(frame_index: usize, parent_frame_index: Option<usize>, lower_bound: usize) -> Self {
         Self {
@@ -104,6 +114,11 @@ impl StackFrame<'_> {
         unsafe { self.0.local_push(value).0 }
     }
 
+    /// Gets a value from this [Stack] using a previously received [HostPtr].
+    /// 
+    /// Note: The provided [HostPtr] can only be used to retrieve values from
+    /// the same [Stack] which created it. Trying to pass a [HostPtr] created by
+    /// another [Stack] instance will panic.
     #[inline]
     pub fn get(&self, ptr: HostPtr) -> Option<&Value> {
         assert_eq!(ptr.stack.id, ptr.stack.id);
@@ -221,11 +236,11 @@ impl Stack {
     unsafe fn drop_frame(&self, index: usize) {
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
-        let (dropped_frame_index, _) = self.decrement_frame_index();
-        /*eprintln!(
-            "[drop frame] index={}, dropped_frame_index={}, current_index={:?}",
+        let (dropped_frame_index, current_index) = self.decrement_frame_index();
+        println!(
+            "[drop_frame] index={}, dropped_frame_index={}, current_index={:?}",
             index, dropped_frame_index, current_index
-        );*/
+        );
         assert_eq!(index, dropped_frame_index);
 
         // Get a mutable reference to our frames vec.
@@ -233,6 +248,7 @@ impl Stack {
 
         // Remove the dropped frame, getting the removed `FrameContext`.
         let dropped_frame = frames.remove(dropped_frame_index);
+        println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame, *dropped_frame);
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
@@ -333,12 +349,25 @@ impl Stack {
 }
 
 #[cfg(test)]
+#[allow(unused_variables)]
 mod test {
+    use crate::runtime::stack::ValType;
     use super::Stack;
     use clarity::vm::Value;
 
+    /// Implement helper methods for testing.
+    impl Stack {
+        fn get_current_local_idx(&self) -> i32 {
+            unsafe { *self.current_local_idx.get() }
+        }
+
+        fn get_next_frame_idx(&self) -> usize {
+            unsafe { *self.next_frame_idx.get() }
+        }
+    }
+
     #[test]
-    fn test() {
+    fn push_and_get_with_multiple_values_in_frame() {
         let stack = Stack::new();
         let mut results = Vec::<i32>::new();
 
@@ -348,14 +377,6 @@ mod test {
             f.push(Value::Int(3));
             f.push(Value::Int(4));
             f.push(Value::Int(5));
-            /*f.frame(0, 0, |f2| {
-                eprintln!("frame2: {:?}", f2);
-                f2.local_push(Value::Int(6));
-                f2.local_push(Value::Int(7));
-                f2.local_push(Value::Int(8));
-                f2.local_push(Value::Int(9));
-                f2.local_push(Value::Int(10));
-            });*/
             let ptr5 = f.push(Value::UInt(11));
             f.push(Value::UInt(12));
             f.push(Value::UInt(13));
@@ -379,5 +400,67 @@ mod test {
         unsafe {
             eprintln!("heap locals: {:?}", *stack.locals.get());
         }
+    }
+
+    #[test]
+    fn stack_tip_is_correctly_adjusted_when_creating_and_dropping_a_frame() {
+        let stack = Stack::new();
+
+        let _result = stack.exec(&mut vec![], |f1| {
+            let ptr1 = f1.push(Value::Int(1));
+            assert_eq!(ValType::Int128, ptr1.val_type);
+
+            let ptr2 = f1.push(Value::UInt(2));
+            assert_eq!(ValType::UInt128, ptr2.val_type);
+            
+            assert_eq!(2, stack.get_current_local_idx());
+            assert_eq!(1, stack.get_next_frame_idx());
+
+            stack.exec(&mut vec![], |f2 |{
+                assert_eq!(2, stack.get_current_local_idx());
+                assert_eq!(2, stack.get_next_frame_idx());
+
+                let val1_1 = f2.get(ptr1);
+                let val1_2 = f2.get(ptr1);
+                let val2 = f2.get(ptr2);
+
+                let ptr3 = f2.push(Value::UInt(3));
+                
+                assert!(val1_1.is_some());
+                assert!(val1_2.is_some());
+                assert_eq!(&Value::Int(1), val1_1.unwrap());
+                assert_eq!(val1_1, val1_2);
+                assert_eq!(&Value::UInt(2), val2.unwrap());
+                assert_eq!(3, stack.get_current_local_idx());
+
+                vec![]
+            });
+
+            vec![]
+        });
+    }
+
+    #[test]
+    fn stack_rewound_to_last_frame_tip_when_dropped() {
+        let stack = Stack::new();
+
+        let _result = stack.exec(&mut vec![], |f1| {
+            let ptr1 = f1.push(Value::Int(1));
+            assert_eq!(1, stack.get_current_local_idx());
+            assert_eq!(1, stack.get_next_frame_idx());
+
+            stack.exec(&mut vec![], |f2| {
+                let ptr2 = f2.push(Value::Int(2));
+                assert_eq!(2, stack.get_current_local_idx());
+                assert_eq!(2, stack.get_next_frame_idx());
+
+                vec![]
+            });
+
+            assert_eq!(1, stack.get_current_local_idx());
+            assert_eq!(1, stack.get_next_frame_idx());
+
+            vec![]
+        });
     }
 }
