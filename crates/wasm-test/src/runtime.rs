@@ -3,10 +3,11 @@ pub(crate) mod alloc;
 pub mod stack;
 
 pub mod native_functions;
-use self::{alloc::WasmAllocator, stack::Stack};
 use crate::ValuesContext;
 pub use native_functions::get_all_functions;
 use wasmtime::Caller;
+pub use crate::runtime::stack::*;
+pub use crate::runtime::alloc::WasmAllocator;
 
 /// The state object which is available in all Wasmtime host function
 /// calls. This is where information/structures which may be needed

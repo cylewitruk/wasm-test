@@ -1,6 +1,18 @@
 use clarity::vm::Value;
 use std::{cell::UnsafeCell, ops::Deref};
 
+pub struct IndexTransition<T> {
+    previous: T,
+    next: T
+}
+
+impl<T> IndexTransition<T> {
+    #[inline]
+    pub fn new(previous: T, next: T) -> Self {
+        Self { previous, next }
+    }
+}
+
 /// Value type indicator, indicating the type of Clarity [Value] a given
 /// [HostPtr] is pointing to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +29,7 @@ pub trait AsValType {
 
 /// Implement [AsValType] for Clarity's [Value].
 impl AsValType for Value {
+    #[inline]
     fn as_val_type(&self) -> ValType {
         match self {
             Value::Int(_) => ValType::Int128,
@@ -121,7 +134,7 @@ impl StackFrame<'_> {
     /// another [Stack] instance will panic.
     #[inline]
     pub fn get(&self, ptr: HostPtr) -> Option<&Value> {
-        assert_eq!(ptr.stack.id, ptr.stack.id);
+        assert_eq!(ptr.stack.id, self.0.id);
         unsafe { self.0.local_get(*ptr) }
     }
 
@@ -170,7 +183,7 @@ pub struct Stack {
     current_local_idx: UnsafeCell<i32>,
     next_frame_idx: UnsafeCell<usize>,
     locals: UnsafeCell<Vec<*const Value>>,
-    frames: UnsafeCell<Vec<*const FrameContext>>,
+    frames: UnsafeCell<Vec<FrameContext>>,
 }
 
 impl Stack {
@@ -224,7 +237,7 @@ impl Stack {
         );
 
         // Get a mutable reference to our frames vec and push our new context.
-        (*self.frames.get()).push(&context as *const _);
+        (*self.frames.get()).push(context);
 
         (self.as_frame(), index)
     }
@@ -237,22 +250,23 @@ impl Stack {
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
         let (dropped_frame_index, current_index) = self.decrement_frame_index();
-        println!(
-            "[drop_frame] index={}, dropped_frame_index={}, current_index={:?}",
-            index, dropped_frame_index, current_index
-        );
-        assert_eq!(index, dropped_frame_index);
+        //println!(
+        //    "[drop_frame] index={}, dropped_frame_index={}, current_index={:?}",
+        //    index, dropped_frame_index, current_index
+        //);
+        assert_eq!(index, dropped_frame_index, "Dropped frame index did not match the index we received.");
 
         // Get a mutable reference to our frames vec.
         let frames = &mut *self.frames.get();
 
         // Remove the dropped frame, getting the removed `FrameContext`.
+        //println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", index, frames[index]);
         let dropped_frame = frames.remove(dropped_frame_index);
-        println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame, *dropped_frame);
+        //println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame, dropped_frame);
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
-        (self.current_local_idx.get()).replace(((*dropped_frame).lower_bound) as i32);
+        (self.current_local_idx.get()).replace(dropped_frame.lower_bound as i32);
     }
 
     /// Returns the index of the current (top) frame in this [Stack].
@@ -279,16 +293,30 @@ impl Stack {
     /// by `drop_frame` to remove frames after they have returned.
     #[inline]
     unsafe fn decrement_frame_index(&self) -> (usize, Option<usize>) {
-        let ptr = self.next_frame_idx.get();
-        let next_index = *ptr;
-        //println!("[decrement_frame_index] next_frame_idx={next_index}");
-
-        if next_index > 1 {
-            let current_index = next_index - 1;
-            *ptr -= 1;
-            (current_index, Some(*ptr))
+        let next_frame_index_ptr = self.next_frame_idx.get();
+        let next_frame_index = *next_frame_index_ptr;
+        let current_frame_index = next_frame_index - 1;
+        let target_frame_index = if current_frame_index > 0 {
+            current_frame_index - 1
         } else {
-            ptr.replace(0);
+            1
+        };
+
+        //println!("[decrement_frame_index] current_frame_index={}, next_frame_idx (upper)={}, target_frame_index={}",
+        //    current_frame_index, next_frame_index, target_frame_index);
+
+        if target_frame_index == 0 {
+            //println!("[decrement_frame_index] target frame is 0, resetting...");
+            *next_frame_index_ptr = 1;
+            return (1, None);
+        }
+
+        if current_frame_index > 0 {
+            *next_frame_index_ptr -= 1;
+            //println!("[decrement_frame_index] returning ({:?}, {:?})", current_frame_index, *next_frame_index_ptr);
+            (current_frame_index, Some(*next_frame_index_ptr))
+        } else {
+            next_frame_index_ptr.replace(0);
             (0, None)
         }
     }
@@ -457,8 +485,8 @@ mod test {
                 vec![]
             });
 
-            assert_eq!(1, stack.get_current_local_idx());
             assert_eq!(1, stack.get_next_frame_idx());
+            assert_eq!(1, stack.get_current_local_idx());
 
             vec![]
         });

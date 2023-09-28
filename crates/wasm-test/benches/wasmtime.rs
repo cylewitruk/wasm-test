@@ -5,6 +5,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use walrus::FunctionId;
 use wasm_test::{
     get_all_functions, runtime::ClarityWasmContext, serialization::serialize_clarity_value,
+    runtime::AsStack
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
@@ -239,6 +240,33 @@ pub fn add_rustref(c: &mut Criterion) {
     let b_ptr = store.data_mut().values.push(Value::Int(2048));
 
     c.bench_function("add/rustref (indirect)/i128", |b| {
+        //store.data_mut().clear_values();
+
+        b.iter(|| {
+            instance_fn
+                .call(&mut store, &[Val::I32(a_ptr), Val::I32(b_ptr)], results)
+                .expect("Failed to call function");
+
+            store.data_mut().values.drop(results[0].unwrap_i32());
+        });
+    });
+}
+
+/// Add using Rust references.
+pub fn add_rustref_stack(c: &mut Criterion) {
+    let (instance, mut store) = load_instance();
+
+    let instance_fn = instance
+        .get_func(&mut store, "add_rustref_stack_test")
+        .expect("Failed to get fn");
+
+    // Define our output parameters. Note that we're using `Option`s as stated above.
+    let results = &mut [Val::null()];
+
+    let a_ptr = store.data_mut().values.push(Value::Int(1024));
+    let b_ptr = store.data_mut().values.push(Value::Int(2048));
+
+    c.bench_function("add/rustref (stack)/i128", |b| {
         //store.data_mut().clear_values();
 
         b.iter(|| {
