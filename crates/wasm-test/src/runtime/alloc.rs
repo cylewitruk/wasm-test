@@ -7,7 +7,37 @@ use fxhash::FxHashMap;
 /// and we only use safe constructs.
 use std::ops::{Deref, DerefMut};
 
-use crate::Ptr;
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Ptr {
+    pub offset: u32,
+    pub len: u32,
+}
+
+impl Ptr {
+    pub fn new(offset: u32, len: u32) -> Self {
+        Ptr { offset, len }
+    }
+
+    pub fn new_uint(offset: u32, len: u32) -> Self {
+        Ptr { offset, len }
+    }
+
+    pub fn offset_i32(&self) -> i32 {
+        self.offset as i32
+    }
+
+    pub fn len_i32(&self) -> i32 {
+        self.len as i32
+    }
+
+    pub(crate) fn set_offset(&mut self, offset: u32) {
+        self.offset = offset;
+    }
+
+    pub(crate) fn set_len(&mut self, len: u32) {
+        self.len = len;
+    }
+}
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct WasmAllocator {

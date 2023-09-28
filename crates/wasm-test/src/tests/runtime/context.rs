@@ -1,7 +1,5 @@
 use clarity::vm::Value;
-use wasmtime::{Config, Engine, Store};
-
-use crate::ClarityWasmContext;
+use crate::tests::runtime::helpers::*;
 
 #[test]
 fn test_new_ptr() {
@@ -19,14 +17,4 @@ fn test_new_ptr() {
     assert_eq!(5, values.new_ptr());
     values.drop(5);
     assert_eq!(5, values.new_ptr());
-}
-
-/// Helper function. Initializes a clean new `Store` using defaults, but
-/// with WASM reference types enabled.
-fn get_new_store() -> Store<ClarityWasmContext> {
-    let mut config = Config::default();
-    config.wasm_reference_types(true);
-    let engine = Engine::new(&config).expect("Failed to initialize Wasmtime Engine.");
-    let context = ClarityWasmContext::new();
-    Store::new(&engine, context)
 }

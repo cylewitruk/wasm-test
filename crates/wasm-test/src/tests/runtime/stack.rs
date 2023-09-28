@@ -1,26 +1,28 @@
-/* use std::cell::{Ref, RefMut};
-
 use clarity::vm::Value;
-use wasmtime::{AsContextMut, Caller, Config, Engine, Func, Store};
+use wasmtime::{Func, Caller};
+use crate::tests::runtime::helpers::*;
+use crate::runtime::{stack::StackFrame, ClarityWasmContext};
 
-use crate::{
-    runtime::{
-        stack::{HostStack, LocalsContext, FrameContext, AsStackMut, AsFrameContextMut},
-    },
-    ClarityWasmContext,
-};
 
 /// Test function
 #[test]
 fn test() {
     let mut store = get_new_store();
-    let stack = HostStack::default();
 
     let func = Func::wrap(&mut store, move |mut caller: Caller<'_, ClarityWasmContext>| {
-        stack.frame(|mut frame: FrameContext<Value>| {
-            frame.local_set(1, Value::Int(1));
-            frame.local_take(5);
-            caller.data_mut().values.drop(5);
+        let stack = &caller.data().stack;
+        stack.exec(&mut Vec::new(),
+        |frame: StackFrame| {
+            let ptr1 = frame.push(Value::Int(1));
+            let ptr2 = frame.push(Value::UInt(2));
+
+            let val1 = frame.get(ptr1);
+            let val2 = frame.get(ptr2);
+
+            println!("ptr1={:?}, val1={:?}", ptr1, val1);
+            println!("ptr2={:?}, val2={:?}", ptr2, val2);
+
+            vec![]
         });
     });
 
@@ -29,14 +31,3 @@ fn test() {
 
 
 }
-
-/// Helper function. Initializes a clean new `Store` using defaults, but
-/// with WASM reference types enabled.
-fn get_new_store() -> Store<ClarityWasmContext> {
-    let mut config = Config::default();
-    config.wasm_reference_types(true);
-    let engine = Engine::new(&config).expect("Failed to initialize Wasmtime Engine.");
-    let context = ClarityWasmContext::new();
-    Store::new(&engine, context)
-}
-*/

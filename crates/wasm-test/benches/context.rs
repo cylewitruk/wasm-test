@@ -3,7 +3,7 @@ use clarity::vm::{
     Value,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use wasm_test::ClarityWasmContext;
+use wasm_test::runtime::ClarityWasmContext;
 use wasmtime::{Config, Engine, Store};
 
 criterion_group!(benches, criterion_benchmark);

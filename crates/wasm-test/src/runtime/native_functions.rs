@@ -3,19 +3,19 @@
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
-use crate::runtime::FuncResultMemoryTrait;
 use crate::serialization::{
     deserialize_clarity_seq_to_ptrs, deserialize_clarity_value,
-    get_type_indicator_from_serialized_value, serialize_clarity_value, TypeIndicator, HEADER_LEN,
+    get_type_indicator_from_serialized_value, serialize_clarity_value, TypeIndicator, HEADER_LEN, FuncResultMemory, RuntimeError,
+    FuncResultMemoryTrait
 };
-use crate::ClarityWasmContext;
 use clarity::vm::{
     types::{CharType, SequenceData},
     Value,
 };
 use wasmtime::{AsContext, AsContextMut, Caller, ExternRef, Func, Val};
 
-use super::{FuncResultMemory, RuntimeError};
+use super::ClarityWasmContext;
+
 
 /// Holds a native function name and function implementation.
 #[derive(Debug)]
@@ -203,7 +203,7 @@ pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
-            let data = caller.data_mut().borrow();
+            let data = &mut caller.data_mut();
             let a = data.values.borrow(a_ptr).unwrap();
             let b = data.values.borrow(b_ptr).unwrap();
 

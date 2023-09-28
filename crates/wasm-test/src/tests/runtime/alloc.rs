@@ -1,7 +1,4 @@
-use crate::{
-    runtime::alloc::{WasmAllocator2, WrappedPtr},
-    Ptr,
-};
+use crate::runtime::alloc::{WasmAllocator2, WrappedPtr};
 
 #[test]
 fn test_alloc_with_size_power_of_two() {

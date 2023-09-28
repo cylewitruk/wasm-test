@@ -1,7 +1,7 @@
-use crate::ClarityWasmContext;
 use clarity::vm::Value;
 use test_case::test_case;
-use wasmtime::{AsContextMut, Caller, Config, Engine, ExternRef, Func, Store, Val};
+use wasmtime::{ExternRef, Val};
+use crate::tests::runtime::helpers::*;
 
 #[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]
@@ -109,14 +109,4 @@ fn test_fold_rustref() {
     let result = store.data_mut().values.take(result_ptr);
     println!("Result: {:?}", result);
     assert_eq!(183285493761, result.unwrap().expect_i128());
-}
-
-/// Helper function. Initializes a clean new `Store` using defaults, but
-/// with WASM reference types enabled.
-fn get_new_store() -> Store<ClarityWasmContext> {
-    let mut config = Config::default();
-    config.wasm_reference_types(true);
-    let engine = Engine::new(&config).expect("Failed to initialize Wasmtime Engine.");
-    let context = ClarityWasmContext::default();
-    Store::new(&engine, context)
 }

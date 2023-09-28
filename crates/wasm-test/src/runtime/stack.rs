@@ -1,16 +1,38 @@
 use clarity::vm::Value;
 use std::{cell::UnsafeCell, ops::Deref};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ValType {
+    Int128,
+    UInt128
+}
+
+pub trait AsValType {
+    fn as_val_type(&self) -> ValType;
+}
+
+impl AsValType for Value {
+    fn as_val_type(&self) -> ValType {
+        match self {
+            Value::Int(_) => ValType::Int128,
+            Value::UInt(_) => ValType::UInt128,
+            _ => todo!()
+        }
+    }
+}
+
 /// The external pointer type exposed by [StackFrame] which can be
 /// used to safely work with data behind the pointers.
 #[derive(Debug, Clone, Copy)]
 pub struct HostPtr {
-    inner: i32
+    inner: i32,
+    val_type: ValType
 }
 
 impl HostPtr {
-    pub(crate) fn new(inner: i32) -> Self {
-        HostPtr { inner }
+    pub(crate) fn new(inner: i32, val_type: ValType) -> Self {
+        HostPtr { inner , val_type }
     }
 
     pub(crate) fn as_usize(&self) -> usize {
@@ -56,17 +78,24 @@ pub struct StackFrame<'a>(&'a Stack);
 impl StackFrame<'_> {
     #[inline]
     pub fn push(&self, value: Value) -> HostPtr {
-        HostPtr::new(self.0.local_push(value))
+        let (ptr, val_type) = unsafe {
+            self.0.local_push(value)
+        };
+        HostPtr::new(ptr, val_type)
     }
 
     #[inline]
     pub fn push_unchecked(&self, value: Value) -> i32 {
-        self.0.local_push(value)
+        unsafe {
+            self.0.local_push(value).0
+        }
     }
 
     #[inline]
     pub fn get(&self, ptr: HostPtr) -> Option<&Value> {
-        self.0.local_get(*ptr)
+        unsafe {
+            self.0.local_get(*ptr)
+        }
     }
 
     #[inline]
@@ -229,11 +258,13 @@ impl Stack {
         }
     }
 
+    /// Pushes a value to the stack.
     #[inline]
-    fn local_push(&self, value: Value) -> i32 {
+    unsafe fn local_push(&self, value: Value) -> (i32, ValType) {
         unsafe {
             let current_idx = self.current_local_idx.get();
             let idx = *current_idx;
+            let val_type = value.as_val_type();
             let ptr = &value as *const Value;
             //println!("[local_push] index={}, value={:?}, ptr={:?}", idx, &value, ptr);
 
@@ -241,7 +272,7 @@ impl Stack {
                 .push(ptr);
 
             *current_idx += 1;
-            idx
+            (idx, val_type)
         }
     }
 
@@ -254,7 +285,7 @@ impl Stack {
     }
 
     #[inline]
-    fn local_get(&self, ptr: i32) -> Option<&Value> {
+    unsafe fn local_get(&self, ptr: i32) -> Option<&Value> {
         unsafe { 
             let raw_ptr = (*self.locals.get())[ptr as usize];
             
@@ -304,14 +335,21 @@ mod test {
                 f2.local_push(Value::Int(9));
                 f2.local_push(Value::Int(10));
             });*/
-            let ptr = f.push(Value::UInt(11));
+            let ptr5 = f.push(Value::UInt(11));
             f.push(Value::UInt(12));
             f.push(Value::UInt(13));
-            f.push(Value::UInt(14));
-            f.push(Value::UInt(15));
+            f.push(Value::Int(14));
+            let ptr8 = f.push(Value::Int(15));
 
-            let val = f.get(ptr);
-            println!("val: {:?}", val);
+            let val5 = f.get(ptr5);
+            assert_eq!(true, val5.is_some());
+            assert_eq!(&Value::UInt(11), val5.unwrap());
+
+            let val8 = f.get(ptr8);
+            assert_eq!(true, val8.is_some());
+            assert_eq!(&Value::Int(15), val8.unwrap());
+
+            println!("val5: {:?}, val8: {:?}", val5, val8);
 
             // return dummy value
             Vec::default()
