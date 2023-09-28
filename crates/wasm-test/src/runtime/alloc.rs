@@ -310,6 +310,8 @@ impl WasmAllocator2 {
         } else {
             let offset = block.id ^ size;
             let list = &self.free_lists[order as usize];
+            
+            #[allow(clippy::needless_range_loop)]
             for i in 0..list.len() {
                 if list[i].offset == offset {
                     return Some(list[i]);

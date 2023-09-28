@@ -147,7 +147,7 @@ impl AsFrame for StackFrame<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Stack {
     current_local_idx: UnsafeCell<i32>,
     next_frame_idx: UnsafeCell<usize>,

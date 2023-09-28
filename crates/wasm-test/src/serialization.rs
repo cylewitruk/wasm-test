@@ -458,6 +458,7 @@ pub fn serialize_clarity_value(value: &Value) -> Result<Vec<u8>, SerializationEr
             CharType::ASCII(s) => {
                 result.extend_from_slice(&s.data);
             }
+            #[allow(clippy::map_clone)]
             CharType::UTF8(s) => {
                 let mut data = s
                     .data
