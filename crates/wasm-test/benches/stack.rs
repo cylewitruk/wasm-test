@@ -7,18 +7,38 @@ criterion_group! {
     name = stack_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(5));
     targets =
-        local_push,
+        local_push_checked,
+        local_push_unchecked,
         push_1_local_from_frame,
         push_2_locals_from_frame,
         push_5_locals_from_frame,
         push_5000_locals_from_frame,
-        get_1_local_from_frame
+        get_1_local_from_frame,
 }
 
-criterion_main!(stack_benches,);
+criterion_main!(
+    stack_benches,
+);
 
-pub fn local_push(c: &mut Criterion) {
-    c.bench_function("stack/push/i128", move |b| {
+pub fn local_push_checked(c: &mut Criterion) {
+    c.bench_function("stack/push/checked i128", move |b| {
+        let stack = Stack::new();
+        let frame = stack.as_frame();
+
+        b.iter_batched(
+            || {
+                frame.clear();
+            },
+            |_| {
+                frame.push(Value::Int(5));
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
+}
+
+pub fn local_push_unchecked(c: &mut Criterion) {
+    c.bench_function("stack/push/unchecked i128", move |b| {
         let stack = Stack::new();
         let frame = stack.as_frame();
 
@@ -126,7 +146,7 @@ pub fn get_1_local_from_frame(c: &mut Criterion) {
     c.bench_function("stack/get/one local from frame", move |b| {
         let stack = Stack::new();
         let frame = stack.as_frame();
-        frame.push(Value::Int(5));
+        let ptr = frame.push(Value::Int(5));
         let mut results = Vec::<i32>::new();
 
         b.iter_batched(
@@ -134,7 +154,7 @@ pub fn get_1_local_from_frame(c: &mut Criterion) {
             },
             |_| {
                 stack.exec(&mut results, |frame: StackFrame| {
-                    frame.get(0);
+                    frame.get(ptr);
                     vec![]
                 });
             },

@@ -1,5 +1,30 @@
 use clarity::vm::Value;
-use std::cell::UnsafeCell;
+use std::{cell::UnsafeCell, ops::Deref};
+
+/// The external pointer type exposed by [StackFrame] which can be
+/// used to safely work with data behind the pointers.
+#[derive(Debug, Clone, Copy)]
+pub struct HostPtr {
+    inner: i32
+}
+
+impl HostPtr {
+    pub(crate) fn new(inner: i32) -> Self {
+        HostPtr { inner }
+    }
+
+    pub(crate) fn as_usize(&self) -> usize {
+        self.inner as usize
+    }
+}
+
+impl Deref for HostPtr {
+    type Target = i32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
 
 pub struct FrameResult {}
 
@@ -22,24 +47,35 @@ impl FrameContext {
 }
 
 /// A helper class which provides the "public" API towards consumers of
-/// [Stack]'s `exec` API.
+/// [Stack]'s `exec` API, as a number of [Stack] methods are unsafe and
+/// can result in UB if used incorrectly.
 #[derive(Debug, Clone)]
 pub struct StackFrame<'a>(&'a Stack);
 
 /// Implementation of the public methods for a [StackFrame].
 impl StackFrame<'_> {
     #[inline]
-    pub fn push(&self, value: Value) -> i32 {
+    pub fn push(&self, value: Value) -> HostPtr {
+        HostPtr::new(self.0.local_push(value))
+    }
+
+    #[inline]
+    pub fn push_unchecked(&self, value: Value) -> i32 {
         self.0.local_push(value)
     }
 
     #[inline]
-    pub fn get(&self, ptr: i32) -> Option<&Value> {
+    pub fn get(&self, ptr: HostPtr) -> Option<&Value> {
+        self.0.local_get(*ptr)
+    }
+
+    #[inline]
+    pub unsafe fn get_unchecked(&self, ptr: i32) -> Option<&Value> {
         self.0.local_get(ptr)
     }
 
     #[inline]
-    pub fn drop(&self, ptr: i32) {
+    pub fn drop(&self, ptr: HostPtr) {
         self.0.local_drop(ptr)
     }
 
@@ -210,9 +246,9 @@ impl Stack {
     }
 
     #[inline]
-    fn local_drop(&self, ptr: i32) {
+    fn local_drop(&self, ptr: HostPtr) {
         unsafe {
-            (&mut *self.locals.get())[ptr as usize] = std::ptr::null();
+            (&mut *self.locals.get())[*ptr as usize] = std::ptr::null();
             //(&mut *self.tombstoned_ptrs.get()).push(ptr);
         }
     }
@@ -268,13 +304,13 @@ mod test {
                 f2.local_push(Value::Int(9));
                 f2.local_push(Value::Int(10));
             });*/
-            f.push(Value::UInt(11));
+            let ptr = f.push(Value::UInt(11));
             f.push(Value::UInt(12));
             f.push(Value::UInt(13));
             f.push(Value::UInt(14));
             f.push(Value::UInt(15));
 
-            let val = stack.local_get(5);
+            let val = f.get(ptr);
             println!("val: {:?}", val);
 
             // return dummy value
