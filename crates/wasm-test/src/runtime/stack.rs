@@ -1,6 +1,7 @@
 use clarity::vm::Value;
 use std::{cell::UnsafeCell, ops::Deref};
 
+/*
 pub struct IndexTransition<T> {
     previous: T,
     next: T
@@ -12,6 +13,7 @@ impl<T> IndexTransition<T> {
         Self { previous, next }
     }
 }
+*/
 
 /// Value type indicator, indicating the type of Clarity [Value] a given
 /// [HostPtr] is pointing to.
@@ -184,6 +186,7 @@ pub struct Stack {
     next_frame_idx: UnsafeCell<usize>,
     locals: UnsafeCell<Vec<*const Value>>,
     frames: UnsafeCell<Vec<FrameContext>>,
+    result_buffer: UnsafeCell<Vec<*const Value>>,
 }
 
 impl Stack {
@@ -195,6 +198,7 @@ impl Stack {
             next_frame_idx: UnsafeCell::new(0),
             locals: UnsafeCell::new(Vec::with_capacity(1000)),
             frames: UnsafeCell::new(Vec::with_capacity(100)),
+            result_buffer: UnsafeCell::new(Vec::with_capacity(15)),
         };
 
         stack.locals.get_mut().fill(std::ptr::null());
@@ -208,12 +212,31 @@ impl Stack {
         func: impl Fn(StackFrame) -> Vec<Value>,
     ) -> FrameResult {
         unsafe {
+            // Create a new virtual frame.
             let (frame, frame_index) = self.new_frame();
-            let frame_result = func(frame);
+            // Call the provided function.
+            let mut frame_result: Vec<Value> = func(frame);
             #[cfg(test)] println!("Frame result count: {}", frame_result.len());
+            // Move the output values from the frame to the result buffer.
+            self.fill_result_buffer(&mut frame_result);
+            // Drop the frame.
             self.drop_frame(frame_index);
         }
+
         FrameResult {}
+    }
+
+    /// Clears and fills this [Stack]'s result buffer with raw pointers to the values
+    /// contained in the provided [Vec].
+    #[inline]
+    fn fill_result_buffer(&self, results: &mut Vec<Value>) {
+        unsafe {
+            let buffer = &mut *self.result_buffer.get();
+            buffer.clear();
+            for result in results {
+                buffer.push(result as *const _)
+            }
+        }
     }
 
     /// Creates a new virtual frame on the [Stack]. It is a virtual frame because it is
@@ -245,11 +268,12 @@ impl Stack {
     /// function returns a [FrameContext] representing the frame at the top of the stack.
     #[inline]
     unsafe fn drop_frame(&self, index: usize) {
+        #[cfg(test)] println!("[drop_frame] current locals index: {}", *self.current_local_idx.get());
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
         let (dropped_frame_index, current_index) = self.decrement_frame_index();
         #[cfg(test)] println!(
-            "[drop_frame] index={}, dropped_frame_index={}, current_index={:?}",
+            "[drop_frame] frame_index={}, dropped_frame_index={}, current_index={:?}",
             index, dropped_frame_index, current_index
         );
         assert_eq!(index, dropped_frame_index, "Dropped frame index did not match the index we received.");
@@ -260,17 +284,21 @@ impl Stack {
         // Remove the dropped frame, getting the removed `FrameContext`.
         #[cfg(test)] println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", index, frames[index]);
         let dropped_frame = frames.remove(dropped_frame_index);
-        #[cfg(test)] println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame, dropped_frame);
+        #[cfg(test)] println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame.frame_index, dropped_frame);
+        #[cfg(test)] println!("[drop_frame] current locals index: {}", *self.current_local_idx.get());
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
-        (self.current_local_idx.get()).replace(dropped_frame.lower_bound as i32);
+        (self.current_local_idx.get())
+            .replace(dropped_frame.lower_bound as i32);
     }
 
     /// Returns the index of the current (top) frame in this [Stack].
     #[inline]
-    unsafe fn get_frame_index(&self) -> usize {
-        *self.next_frame_idx.get()
+    fn get_frame_index(&self) -> usize {
+        unsafe {
+            *self.next_frame_idx.get()
+        }
     }
 
     /// Increments the current frame index and returns a tuple of (`last_value`, `new_value`),
@@ -323,12 +351,21 @@ impl Stack {
     #[inline]
     unsafe fn local_push(&self, value: Value) -> (i32, ValType) {
         unsafe {
+            let backing_vec_len = (*self.locals.get()).len();
             let current_idx = self.current_local_idx.get();
+            let current_idx_usize = *current_idx as usize;
+
             let idx = *current_idx;
             let val_type = value.as_val_type();
             let ptr = &value as *const Value;
 
-            (*self.locals.get()).push(ptr);
+            if current_idx_usize < backing_vec_len {
+                #[cfg(test)] println!("[local_push] setting value at index {}", current_idx_usize);
+                (*self.locals.get())[current_idx_usize] = ptr;
+            } else {
+                #[cfg(test)] println!("[local_push] pushing new value, current len={}, new index={}", backing_vec_len, current_idx_usize);
+                (*self.locals.get()).push(ptr);
+            }
 
             *current_idx += 1;
             (idx, val_type)
@@ -370,7 +407,7 @@ impl Stack {
 
     #[inline]
     pub fn local_count(&self) -> usize {
-        unsafe { (*self.locals.get()).len() }
+        unsafe { *self.current_local_idx.get() as usize }
     }
 }
 
@@ -389,6 +426,10 @@ mod test {
 
         fn get_next_frame_idx(&self) -> usize {
             unsafe { *self.next_frame_idx.get() }
+        }
+
+        pub fn get_locals_vec_len(&self) -> usize {
+            unsafe { (*self.locals.get()).len() }
         }
     }
 
@@ -497,11 +538,15 @@ mod test {
         assert_eq!(2, stack.local_count());
 
         (1..=5).into_iter().for_each(|i| {
+            println!("--------------------------------------------");
             println!("Iteration #{i}");
+            println!("--------------------------------------------");
             assert_eq!(2, stack.get_current_local_idx());
+
             stack.exec(|frame| {
                 let a = unsafe { frame.get_unchecked(a_ptr) };
                 let b = unsafe { frame.get_unchecked(b_ptr) };
+                println!("[test] current_local_idx: {}", stack.get_current_local_idx());
 
                 let result = match (a, b) {
                     (Some(Value::Int(a)), Some(Value::Int(b))) => Value::Int(a + b),
@@ -509,8 +554,16 @@ mod test {
                     _ => todo!("Add not implemented for given types"),
                 };
 
+                // Push an extra dummy value so we can make sure it gets properly dropped
+                frame.push(result.clone());
+                println!("[test] current_local_idx: {}", stack.get_current_local_idx());
+
                 vec![result]
             });
+
+            println!("[test] current_local_idx: {}, vec len: {}", stack.get_current_local_idx(), stack.get_locals_vec_len());
+            //assert_eq!(2, stack.local_count());
+            assert_eq!(2, stack.get_current_local_idx());
         });
     }
 }
