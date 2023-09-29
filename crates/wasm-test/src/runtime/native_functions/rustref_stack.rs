@@ -8,7 +8,7 @@ pub fn define_add_rustref_stack(mut store: impl AsContextMut<Data = ClarityWasmC
     Func::wrap(
         &mut store,
         |caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
-            caller.as_stack().exec(&mut vec![], |frame| {
+            caller.as_stack().exec(|frame| {
                 let a = unsafe { frame.get_unchecked(a_ptr) };
                 let b = unsafe { frame.get_unchecked(b_ptr) };
 
@@ -18,8 +18,7 @@ pub fn define_add_rustref_stack(mut store: impl AsContextMut<Data = ClarityWasmC
                     _ => todo!("Add not implemented for given types"),
                 };
 
-                let result_id = frame.push(result);
-                vec![]
+                vec![result]
             });
             5
         },

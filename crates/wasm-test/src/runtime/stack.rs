@@ -204,17 +204,15 @@ impl Stack {
     #[inline]
     pub fn exec(
         &self,
-        results: &mut Vec<i32>,
         // Added the for<> below just as a reminder in case we use lifetimes later
-        func: impl Fn(StackFrame) -> Vec<i32>,
+        func: impl Fn(StackFrame) -> Vec<Value>,
     ) -> FrameResult {
         unsafe {
             let (frame, frame_index) = self.new_frame();
-            func(frame);
+            let frame_result = func(frame);
+            #[cfg(test)] println!("Frame result count: {}", frame_result.len());
             self.drop_frame(frame_index);
         }
-
-        results.push(0);
         FrameResult {}
     }
 
@@ -224,9 +222,9 @@ impl Stack {
     #[inline]
     unsafe fn new_frame(&self) -> (StackFrame, usize) {
         // Retrieve the index for a new frame and increment the frame index.
-        //println!("[new_frame] pre-increment={}", &*self.next_frame_idx.get());
-        let (index, _) = self.increment_frame_index();
-        //println!("[new_frame] index={}, next_index={}", index, next_index);
+        #[cfg(test)] println!("[new_frame] pre-increment={}", &*self.next_frame_idx.get());
+        let (index, next_index) = self.increment_frame_index();
+        #[cfg(test)] println!("[new_frame] index={}, next_index={}", index, next_index);
 
         // Create a new frame context, which stores a little bit of information
         // about the frame that we'll need later.
@@ -250,19 +248,19 @@ impl Stack {
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
         let (dropped_frame_index, current_index) = self.decrement_frame_index();
-        //println!(
-        //    "[drop_frame] index={}, dropped_frame_index={}, current_index={:?}",
-        //    index, dropped_frame_index, current_index
-        //);
+        #[cfg(test)] println!(
+            "[drop_frame] index={}, dropped_frame_index={}, current_index={:?}",
+            index, dropped_frame_index, current_index
+        );
         assert_eq!(index, dropped_frame_index, "Dropped frame index did not match the index we received.");
 
         // Get a mutable reference to our frames vec.
         let frames = &mut *self.frames.get();
 
         // Remove the dropped frame, getting the removed `FrameContext`.
-        //println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", index, frames[index]);
+        #[cfg(test)] println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", index, frames[index]);
         let dropped_frame = frames.remove(dropped_frame_index);
-        //println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame, dropped_frame);
+        #[cfg(test)] println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame, dropped_frame);
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
@@ -397,9 +395,8 @@ mod test {
     #[test]
     fn push_and_get_with_multiple_values_in_frame() {
         let stack = Stack::new();
-        let mut results = Vec::<i32>::new();
 
-        let _result = stack.exec(&mut results, |f| {
+        let _result = stack.exec(|f| {
             f.push(Value::Int(1));
             f.push(Value::Int(2));
             f.push(Value::Int(3));
@@ -421,8 +418,7 @@ mod test {
 
             println!("val5: {:?}, val8: {:?}", val5, val8);
 
-            // return dummy value
-            Vec::default()
+            vec![]
         });
 
         unsafe {
@@ -434,7 +430,7 @@ mod test {
     fn stack_tip_is_correctly_adjusted_when_creating_and_dropping_a_frame() {
         let stack = Stack::new();
 
-        let _result = stack.exec(&mut vec![], |f1| {
+        let _result = stack.exec(|f1| {
             let ptr1 = f1.push(Value::Int(1));
             assert_eq!(ValType::Int128, ptr1.val_type);
 
@@ -444,7 +440,7 @@ mod test {
             assert_eq!(2, stack.get_current_local_idx());
             assert_eq!(1, stack.get_next_frame_idx());
 
-            stack.exec(&mut vec![], |f2 |{
+            stack.exec(|f2 | {
                 assert_eq!(2, stack.get_current_local_idx());
                 assert_eq!(2, stack.get_next_frame_idx());
 
@@ -472,12 +468,12 @@ mod test {
     fn stack_rewound_to_last_frame_tip_when_dropped() {
         let stack = Stack::new();
 
-        let _result = stack.exec(&mut vec![], |f1| {
+        let _result = stack.exec(|f1| {
             let ptr1 = f1.push(Value::Int(1));
             assert_eq!(1, stack.get_current_local_idx());
             assert_eq!(1, stack.get_next_frame_idx());
 
-            stack.exec(&mut vec![], |f2| {
+            stack.exec(|f2| {
                 let ptr2 = f2.push(Value::Int(2));
                 assert_eq!(2, stack.get_current_local_idx());
                 assert_eq!(2, stack.get_next_frame_idx());
@@ -489,6 +485,32 @@ mod test {
             assert_eq!(1, stack.get_current_local_idx());
 
             vec![]
+        });
+    }
+
+    #[test]
+    fn test_stack_in_loop() {
+        let stack = Stack::new();
+
+        let (a_ptr, _) = unsafe { stack.local_push(Value::Int(1024)) };
+        let (b_ptr, _) = unsafe { stack.local_push(Value::Int(2048)) };
+        assert_eq!(2, stack.local_count());
+
+        (1..=5).into_iter().for_each(|i| {
+            println!("Iteration #{i}");
+            assert_eq!(2, stack.get_current_local_idx());
+            stack.exec(|frame| {
+                let a = unsafe { frame.get_unchecked(a_ptr) };
+                let b = unsafe { frame.get_unchecked(b_ptr) };
+
+                let result = match (a, b) {
+                    (Some(Value::Int(a)), Some(Value::Int(b))) => Value::Int(a + b),
+                    (Some(Value::UInt(a)), Some(Value::UInt(b))) => Value::UInt(a.checked_add(*b).unwrap()),
+                    _ => todo!("Add not implemented for given types"),
+                };
+
+                vec![result]
+            });
         });
     }
 }

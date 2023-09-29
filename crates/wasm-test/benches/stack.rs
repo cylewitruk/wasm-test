@@ -55,14 +55,13 @@ pub fn local_push_unchecked(c: &mut Criterion) {
 pub fn push_1_local_from_frame(c: &mut Criterion) {
     c.bench_function("stack/push/one local from frame", move |b| {
         let stack = Stack::new();
-        let mut results = Vec::<i32>::new();
 
         b.iter_batched(
             || {
                 unsafe { stack.clear_locals() };
             },
             |_| {
-                stack.exec(&mut results, |frame: StackFrame| {
+                stack.exec(|frame: StackFrame| {
                     frame.push(Value::Int(5));
                     vec![]
                 });
@@ -75,14 +74,13 @@ pub fn push_1_local_from_frame(c: &mut Criterion) {
 pub fn push_2_locals_from_frame(c: &mut Criterion) {
     c.bench_function("stack/push/two locals from frame", move |b| {
         let stack = Stack::new();
-        let mut results = Vec::<i32>::new();
 
         b.iter_batched(
             || {
                 unsafe { stack.clear_locals() };
             },
             |_| {
-                stack.exec(&mut results, |frame: StackFrame| {
+                stack.exec(|frame: StackFrame| {
                     frame.push(Value::Int(1));
                     frame.push(Value::Int(2));
                     vec![]
@@ -96,14 +94,13 @@ pub fn push_2_locals_from_frame(c: &mut Criterion) {
 pub fn push_5_locals_from_frame(c: &mut Criterion) {
     c.bench_function("stack/push/five locals from frame", move |b| {
         let stack = Stack::new();
-        let mut results = Vec::<i32>::new();
 
         b.iter_batched(
             || {
                 unsafe { stack.clear_locals() };
             },
             |_| {
-                stack.exec(&mut results, |frame: StackFrame| {
+                stack.exec(|frame: StackFrame| {
                     frame.push(Value::Int(1));
                     frame.push(Value::Int(2));
                     frame.push(Value::Int(3));
@@ -120,14 +117,13 @@ pub fn push_5_locals_from_frame(c: &mut Criterion) {
 pub fn push_5000_locals_from_frame(c: &mut Criterion) {
     c.bench_function("stack/push/5 000 locals from frame", move |b| {
         let stack = Stack::new();
-        let mut results = Vec::<i32>::new();
 
         b.iter_batched(
             || {
                 unsafe { stack.clear_locals() };
             },
             |_| {
-                stack.exec(&mut results, |frame: StackFrame| {
+                stack.exec(|frame: StackFrame| {
                     for i in 0..5000 {
                         frame.push(Value::Int(i));
                     }
@@ -144,12 +140,11 @@ pub fn get_1_local_from_frame(c: &mut Criterion) {
         let stack = Stack::new();
         let frame = stack.as_frame();
         let ptr = frame.push(Value::Int(5));
-        let mut results = Vec::<i32>::new();
 
         b.iter_batched(
             || {},
             |_| {
-                stack.exec(&mut results, |frame: StackFrame| {
+                stack.exec(|frame: StackFrame| {
                     frame.get(ptr);
                     vec![]
                 });

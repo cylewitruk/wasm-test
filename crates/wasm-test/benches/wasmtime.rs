@@ -17,10 +17,20 @@ criterion_group!(
 criterion_group! {
     name = add_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
-    targets = add_wat, add_externref, add_rustref, add_rustref_direct, add_native, add_memory
+    targets = 
+        add_wat, 
+        add_externref, 
+        add_rustref, 
+        add_rustref_stack, 
+        add_rustref_direct, 
+        add_native, 
+        add_memory,
 }
 
-criterion_main!(fold_add_square_benches, add_benches);
+criterion_main!(
+    //fold_add_square_benches, 
+    add_benches,
+);
 
 /// Helper struct to store mappings between a function name andits module import id and function id.
 #[derive(Debug, Clone)]
@@ -266,14 +276,10 @@ pub fn add_rustref_stack(c: &mut Criterion) {
     let b_ptr = store.data_mut().values.push(Value::Int(2048));
 
     c.bench_function("add/rustref (stack)/i128", |b| {
-        //store.data_mut().clear_values();
-
         b.iter(|| {
             instance_fn
                 .call(&mut store, &[Val::I32(a_ptr), Val::I32(b_ptr)], results)
                 .expect("Failed to call function");
-
-            store.data_mut().values.drop(results[0].unwrap_i32());
         });
     });
 }
@@ -417,6 +423,7 @@ pub fn generate_wasm() -> Vec<u8> {
     funcs.push(define_add_memory_test(&mut module, &funcs));
     funcs.push(define_add_extref_test(&mut module, &funcs));
     funcs.push(define_add_rustref_test(&mut module, &funcs));
+    funcs.push(define_add_rustref_stack_test(&mut module, &funcs));
     funcs.push(define_add_square_extref_test(&mut module, &funcs));
     funcs.push(define_add_square_rustref_test(&mut module, &funcs));
     funcs.push(define_fold_add_square_extref_test(&mut module, &funcs));
