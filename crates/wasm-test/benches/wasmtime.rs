@@ -4,8 +4,7 @@ use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
 use walrus::FunctionId;
 use wasm_test::{
-    get_all_functions, runtime::ClarityWasmContext, serialization::serialize_clarity_value,
-    runtime::AsStack
+    get_all_functions, runtime::ClarityWasmContext, serialization::serialize_clarity_value
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
@@ -405,6 +404,7 @@ pub fn generate_wasm() -> Vec<u8> {
         define_add_native(&mut module),
         define_add_memory(&mut module),
         define_add_rustref(&mut module),
+        define_add_rustref_stack(&mut module),
         define_mul_extref(&mut module),
         define_mul_rustref(&mut module),
         define_fold_extref(&mut module),
@@ -669,6 +669,21 @@ fn define_add_rustref(module: &mut walrus::Module) -> WasmFunctionMapping {
 }
 
 /// ================================================================================
+/// `add_rustref` function.
+/// ================================================================================
+fn define_add_rustref_stack(module: &mut walrus::Module) -> WasmFunctionMapping {
+    use walrus::ValType;
+
+    // Import the API definition for `add_rustref`.
+    let add_rustref_ty = module
+        .types
+        .add(&[ValType::I32, ValType::I32], &[ValType::I32]);
+
+    let (function_id, _) = module.add_import_func("clarity", "add_rustref_stack", add_rustref_ty);
+    WasmFunctionMapping::new_import("add_rustref_stack", function_id)
+}
+
+/// ================================================================================
 /// `add_native_test` function.
 /// ================================================================================
 fn define_add_native_test(
@@ -807,6 +822,36 @@ fn define_add_rustref_test(
 
     let add_rustref_test_id = add_rustref_test_fn.finish(vec![a, b], &mut module.funcs);
     module.exports.add("add_rustref_test", add_rustref_test_id);
+
+    WasmFunctionMapping::new_export("add_rustref_test", add_rustref_test_id)
+}
+
+fn define_add_rustref_stack_test(
+    module: &mut walrus::Module,
+    funcs: &[WasmFunctionMapping],
+) -> WasmFunctionMapping {
+    use walrus::{FunctionBuilder, ValType};
+
+    let add_rustref_stack_id = funcs.get_by_name("add_rustref_stack").unwrap().function_id;
+
+    // Define the Wasm test function.
+    let mut add_rustref_stack_test_fn = FunctionBuilder::new(
+        &mut module.types,
+        &[ValType::I32, ValType::I32], // list + init
+        &[ValType::I32],
+    );
+
+    let a = module.locals.add(ValType::I32);
+    let b = module.locals.add(ValType::I32);
+
+    add_rustref_stack_test_fn
+        .func_body()
+        .local_get(a)
+        .local_get(b)
+        .call(add_rustref_stack_id);
+
+    let add_rustref_test_id = add_rustref_stack_test_fn.finish(vec![a, b], &mut module.funcs);
+    module.exports.add("add_rustref_stack_test", add_rustref_test_id);
 
     WasmFunctionMapping::new_export("add_rustref_test", add_rustref_test_id)
 }

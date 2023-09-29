@@ -1,11 +1,12 @@
 pub(crate) mod alloc;
 #[macro_use]
 pub mod stack;
-
 pub mod native_functions;
-use crate::ValuesContext;
-pub use native_functions::get_all_functions;
+
 use wasmtime::Caller;
+use crate::ValuesContext;
+
+pub use native_functions::get_all_functions;
 pub use crate::runtime::stack::*;
 pub use crate::runtime::alloc::WasmAllocator;
 
