@@ -31,7 +31,15 @@ impl ClarityWasmContext {
         Self {
             alloc: Default::default(),
             values: Default::default(),
-            stack: Stack::new()
+            stack: Stack::default()
+        }
+    }
+
+    pub fn with_stack(stack: Stack) -> Self {
+        Self {
+            alloc: Default::default(),
+            values: Default::default(),
+            stack
         }
     }
 }
@@ -108,7 +116,7 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
             // Create a new virtual frame.
             let (frame, frame_index) = stack.new_frame();
             // Call the provided function.
-            let mut frame_result: Vec<Value> = func(frame, self);
+            let frame_result: Vec<Value> = func(frame, self);
             #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
             // Move the output values from the frame to the result buffer.
             stack.fill_result_buffer(frame_result);
@@ -120,8 +128,11 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
 
 #[cfg(test)]
 mod test {
+    use std::rc::Rc;
+
+    use clarity::vm::Value;
     use walrus::{ValType, FunctionBuilder};
-    use wasmtime::{Store, Engine, Config, AsContextMut, Extern, Instance, Module};
+    use wasmtime::{Store, Engine, Config, Extern, Instance, Module, Val};
     use super::{Stack, ClarityWasmContext, AsStoreExec};
 
     #[test]
@@ -129,7 +140,7 @@ mod test {
         let stack = Stack::default();
         let config = Config::default();
         let engine = Engine::new(&config).unwrap();
-        let data = ClarityWasmContext::default();
+        let data = ClarityWasmContext::with_stack(stack);
         let mut store = Store::new(&engine, data);
 
         // Convert the (name, func) pairs to a vec of `Export`s (needed for the Instance).
@@ -177,12 +188,18 @@ mod test {
             .get_func(&mut store, "add_rustref_stack_test")
             .expect("Failed to get fn");
 
-        store.exec(&stack, |_frame, _store| {
+        store.exec(&stack, |frame, store| {
+            let ptr1 = frame.push(Value::Int(1024));
+            let ptr2 = frame.push(Value::Int(2048));
+
+            println!("{}", &stack);
+            
             println!("[test] calling function");
-            let s = &mut _store.as_context_mut();
-            let result = instance_fn.call(s, &[], &mut [])
+
+            let result = instance_fn.call(store, &[Val::I32(*ptr1), Val::I32(*ptr2)], &mut [Val::null()])
                 .map_err(|e| panic!("[test] error: {:?}", e))
                 .expect("failed to call function.");
+
             println!("[test] call result: {:?}", result);
 
             vec![]

@@ -8,8 +8,10 @@ pub fn define_add_rustref_stack<'a>(mut store: impl AsContextMut<Data = ClarityW
     Func::wrap(
         &mut store,
         |caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
-            println!("[add_rustref_stack] here!");
+            println!("[add_rustref_stack] executing in frame");
             caller.as_stack().exec(|frame: StackFrame<'_>| {
+                println!("[add_rustref_stack]\n{}", frame);
+                println!("[add_rustref_stack] frame: {:?}", &frame);
                 let a = unsafe { frame.get_unchecked(a_ptr) };
                 let b = unsafe { frame.get_unchecked(b_ptr) };
 
