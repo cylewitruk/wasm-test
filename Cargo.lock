@@ -3727,6 +3727,7 @@ name = "wasm_test"
 version = "0.1.0"
 dependencies = [
  "bv",
+ "cfg-if",
  "chrono",
  "clarity-vm",
  "criterion",
@@ -3738,6 +3739,7 @@ dependencies = [
  "num-traits",
  "parking_lot",
  "paste",
+ "rand 0.8.5",
  "rusqlite",
  "seq-macro",
  "sha2 0.10.7",
