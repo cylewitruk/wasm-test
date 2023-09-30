@@ -120,11 +120,8 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
 
 #[cfg(test)]
 mod test {
-    use walrus::ValType;
+    use walrus::{ValType, FunctionBuilder};
     use wasmtime::{Store, Engine, Config, AsContextMut, Extern, Instance, Module};
-
-    use crate::get_all_functions;
-
     use super::{Stack, ClarityWasmContext, AsStoreExec};
 
     #[test]
@@ -149,8 +146,27 @@ mod test {
             .types
             .add(&[ValType::I32, ValType::I32], &[ValType::I32]);
 
-        walrus_module
+        let (function_id, import_id) = walrus_module
             .add_import_func("clarity", "add_rustref_stack", add_rustref_stack_ty);
+
+        // Define the Wasm test function.
+        let mut add_rustref_stack_test_fn = FunctionBuilder::new(
+            &mut walrus_module.types,
+            &[ValType::I32, ValType::I32], // list + init
+            &[ValType::I32],
+        );
+    
+        let a = walrus_module.locals.add(ValType::I32);
+        let b = walrus_module.locals.add(ValType::I32);
+    
+        add_rustref_stack_test_fn
+            .func_body()
+            .local_get(a)
+            .local_get(b)
+            .call(function_id);
+    
+        let add_rustref_test_id = add_rustref_stack_test_fn.finish(vec![a, b], &mut walrus_module.funcs);
+        walrus_module.exports.add("add_rustref_stack_test", add_rustref_test_id);
 
         // Compile the module.
         let wasm_bytes = walrus_module.emit_wasm();
@@ -158,14 +174,16 @@ mod test {
         let instance = Instance::new(&mut store, &module, &imports).expect("Couldn't create new module instance");
 
         let instance_fn = instance
-            .get_func(store.as_context_mut(), "add_rustref_stack")
+            .get_func(&mut store, "add_rustref_stack_test")
             .expect("Failed to get fn");
 
-        
-
         store.exec(&stack, |_frame, _store| {
-            let mut s = &mut _store.as_context_mut();
-            instance_fn.call(s, &[], &mut []);
+            println!("[test] calling function");
+            let s = &mut _store.as_context_mut();
+            let result = instance_fn.call(s, &[], &mut [])
+                .map_err(|e| panic!("[test] error: {:?}", e))
+                .expect("failed to call function.");
+            println!("[test] call result: {:?}", result);
 
             vec![]
         });
