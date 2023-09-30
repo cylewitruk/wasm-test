@@ -1,12 +1,13 @@
-use crate::runtime::ClarityWasmContext;
+use crate::runtime::{ClarityWasmContext, Stack};
 use wasmtime::{Config, Engine, Store};
 
 /// Helper function. Initializes a clean new `Store` using defaults, but
 /// with WASM reference types enabled.
-pub fn get_new_store() -> Store<ClarityWasmContext> {
+pub fn get_new_store<'a>() -> Store<ClarityWasmContext> {
     let mut config = Config::default();
     config.wasm_reference_types(true);
     let engine = Engine::new(&config).expect("Failed to initialize Wasmtime Engine.");
-    let context = ClarityWasmContext::default();
+    let stack = Stack::new();
+    let context = ClarityWasmContext::new();
     Store::new(&engine, context)
 }

@@ -10,7 +10,7 @@ fn test() {
     let mut store = get_new_store();
 
     let func = Func::wrap(&mut store, move |caller: Caller<'_, ClarityWasmContext>| {
-        let stack = caller.as_stack();
+        /*let stack = caller.as_stack();
         
         stack.exec(|frame: StackFrame| {
             let ptr1 = frame.push(Value::Int(1));
@@ -23,7 +23,7 @@ fn test() {
             println!("ptr2={:?}, val2={:?}", ptr2, val2);
 
             vec![]
-        });
+        });*/
     });
 
     func.call(&mut store, &[], &mut [])

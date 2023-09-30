@@ -1,0 +1,13 @@
+test:
+    cargo test
+
+build:
+    cargo build
+
+# runs the specified bench
+bench target:
+    cargo bench --bench "{{target}}" --features "bench"
+
+install:
+    cargo install -f just
+

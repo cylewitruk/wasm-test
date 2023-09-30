@@ -3,7 +3,7 @@ use clarity::vm::{
     Value,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
-use wasm_test::runtime::ClarityWasmContext;
+use wasm_test::runtime::{ClarityWasmContext, Stack};
 use wasmtime::{Config, Engine, Store};
 
 criterion_group!(benches, criterion_benchmark);
@@ -121,6 +121,7 @@ fn get_new_store() -> Store<ClarityWasmContext> {
     let mut config = Config::default();
     config.wasm_reference_types(true);
     let engine = Engine::new(&config).expect("Failed to initialize Wasmtime Engine.");
-    let context = ClarityWasmContext::default();
+    let stack = Stack::default();
+    let context = ClarityWasmContext::new();
     Store::new(&engine, context)
 }

@@ -6,7 +6,7 @@ use crate::runtime::ClarityWasmContext;
 /// Defines the `drop_ptr` function which allows Wasm to drop unused RustRef
 /// pointers (such as intermediate results, etc.).
 #[inline]
-pub fn define_drop_ptr_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_drop_ptr_rustref<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>, ptr: i32| {
@@ -17,7 +17,7 @@ pub fn define_drop_ptr_rustref(mut store: impl AsContextMut<Data = ClarityWasmCo
 }
 
 #[inline]
-pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_add_rustref<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
@@ -37,7 +37,7 @@ pub fn define_add_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
 }
 
 #[inline]
-pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_mul_rustref<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
@@ -58,7 +58,7 @@ pub fn define_mul_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext
 }
 
 #[inline]
-pub fn define_fold_rustref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_fold_rustref<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,

@@ -1,10 +1,12 @@
 use std::{cell::RefCell, time::Duration};
 
 use clarity::vm::Value;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use walrus::FunctionId;
 use wasm_test::{
-    get_all_functions, runtime::ClarityWasmContext, serialization::serialize_clarity_value
+    get_all_functions, 
+    runtime::{ClarityWasmContext, StackFrame, AsStack, Stack, StackExecContext, AsExec}, 
+    serialization::serialize_clarity_value
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
@@ -18,13 +20,13 @@ criterion_group! {
     name = add_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
     targets = 
-        add_wat, 
-        add_externref, 
-        add_rustref, 
+        //add_wat, 
+        //add_externref, 
+        //add_rustref, 
         add_rustref_stack, 
-        add_rustref_direct, 
-        add_native, 
-        add_memory,
+        //add_rustref_direct, 
+        //add_native, 
+        //add_memory,
 }
 
 criterion_main!(
@@ -77,7 +79,8 @@ impl GetImportedFunctionByName for &[WasmFunctionMapping] {
 }
 
 pub fn fold_add_square_rustref(c: &mut Criterion) {
-    let (instance, store) = load_instance();
+    let stack = Stack::default();
+    let (instance, store) = load_instance(&stack);
     let mut store = RefCell::new(store);
 
     let instance_fn = instance
@@ -137,7 +140,8 @@ pub fn fold_add_square_rustref(c: &mut Criterion) {
 
 /// Fold-add-square using Extrefs
 pub fn fold_add_square_externref(c: &mut Criterion) {
-    let (instance, mut store) = load_instance();
+    let stack = Stack::default();
+    let (instance, mut store) = load_instance(&stack);
 
     let instance_fn = instance
         .get_func(&mut store, "fold_add_square_extref_test")
@@ -203,7 +207,8 @@ pub fn add_wat(c: &mut Criterion) {
 
 /// Add using Wasmtime Externrefs.
 pub fn add_externref(c: &mut Criterion) {
-    let (instance, mut store) = load_instance();
+    let stack = Stack::default();
+    let (instance, mut store) = load_instance(&stack);
 
     let instance_fn = instance
         .get_func(&mut store, "add_extref_test")
@@ -236,7 +241,8 @@ pub fn add_externref(c: &mut Criterion) {
 
 /// Add using Rust references.
 pub fn add_rustref(c: &mut Criterion) {
-    let (instance, mut store) = load_instance();
+    let stack = Stack::default();
+    let (instance, mut store) = load_instance(&stack);
 
     let instance_fn = instance
         .get_func(&mut store, "add_rustref_test")
@@ -262,31 +268,68 @@ pub fn add_rustref(c: &mut Criterion) {
 }
 
 /// Add using Rust references.
+//#[cfg(any(feature = "bench", rust_analyzer))]
 pub fn add_rustref_stack(c: &mut Criterion) {
-    let (instance, mut store) = load_instance();
+    c.bench_function("add/rustref (stack)/i128", move |b| {
+        let stack = Stack::default();
+        let (instance, mut store) = load_instance(&stack);
 
-    let instance_fn = instance
-        .get_func(&mut store, "add_rustref_stack_test")
-        .expect("Failed to get fn");
+        let _instance_fn = instance
+            .get_func(store.as_context_mut(), "add_rustref_stack_test")
+            .expect("Failed to get fn");
 
-    // Define our output parameters. Note that we're using `Option`s as stated above.
-    let results = &mut [Val::null()];
+        store.exec(&stack, |_frame, _store| {
 
-    let a_ptr = store.data_mut().values.push(Value::Int(1024));
-    let b_ptr = store.data_mut().values.push(Value::Int(2048));
+            b.iter_batched(|| {
+                let mut s = &mut _store.as_context_mut();
+                _instance_fn.call(s, &[], &mut []);
+            }, 
+            |_| {
+            },
+            BatchSize::SmallInput
+        );
 
-    c.bench_function("add/rustref (stack)/i128", |b| {
-        b.iter(|| {
-            instance_fn
-                .call(&mut store, &[Val::I32(a_ptr), Val::I32(b_ptr)], results)
-                .expect("Failed to call function");
+            vec![]
         });
     });
+
+    // TODO: Try using iter_batched instead
+
+    /*store.as_stack().exec2(
+        store,
+        |
+            st: &mut Store<ClarityWasmContext>, 
+            outer_frame: &StackFrame
+        | {
+            let a_ptr = outer_frame.push(Value::Int(1024));
+            let b_ptr = outer_frame.push(Value::Int(2048));
+            eprintln!("a_ptr={}", a_ptr);
+            eprintln!("b_ptr={}", b_ptr);
+            //eprintln!("{}", stack);
+
+            // Define our output parameters. Note that we're using `Option`s as stated above.
+            let results = &mut [Val::null()];
+
+            //c.bench_function("add/rustref (stack)/i128", |b| {
+                //b.iter(|| {
+                    instance_fn
+                        .call(
+                            st.as_context_mut(),
+                            &[Val::I32(*a_ptr), Val::I32(*b_ptr)], 
+                            results)
+                        .expect("Failed to call function");
+                //});
+            //});
+
+            vec![]
+        }
+    );*/
 }
 
 /// Add using Rust references.
 pub fn add_rustref_direct(c: &mut Criterion) {
-    let (_, mut store) = load_instance();
+    let stack = Stack::default();
+    let (_, mut store) = load_instance(&stack);
 
     let a_ptr = store.data_mut().values.push(Value::Int(1));
     let b_ptr = store.data_mut().values.push(Value::Int(2));
@@ -309,7 +352,8 @@ pub fn add_rustref_direct(c: &mut Criterion) {
 
 /// Add using native Wasm types.
 pub fn add_native(c: &mut Criterion) {
-    let (instance, mut store) = load_instance();
+    let stack = Stack::default();
+    let (instance, mut store) = load_instance(&stack);
 
     c.bench_function("add/native/i128", |b| {
         let instance_fn = instance
@@ -336,7 +380,8 @@ pub fn add_native(c: &mut Criterion) {
 
 /// Add using Wasm memory and serialization of Clarity types.
 pub fn add_memory(c: &mut Criterion) {
-    let (instance, mut store) = load_instance();
+    let stack = Stack::default();
+    let (instance, mut store) = load_instance(&stack);
 
     let instance_fn = instance
         .get_func(&mut store, "add_memory_test")
@@ -476,7 +521,7 @@ pub fn load_stdlib() -> (Instance, Store<()>) {
 }
 
 /// Helper function for loading the generated Wasm binary.
-pub fn load_instance() -> (Instance, Store<ClarityWasmContext>) {
+pub fn load_instance(stack: &Stack) -> (Instance, Store<ClarityWasmContext>) {
     // Generate a wasm module (see `wasm_generator.rs`) which has a `toplevel` function
     // which in turn calls the below defined wrapped function `func`.
     let wasm_bytes = generate_wasm();
@@ -496,7 +541,7 @@ pub fn load_instance() -> (Instance, Store<ClarityWasmContext>) {
         .expect("Failed to precompile module");
 
     // Initialize the wasmtime store (using a custom state type).
-    let state = ClarityWasmContext::default();
+    let state = ClarityWasmContext::new();
     let mut store = Store::new(&engine, state);
 
     // Load the module generated above.
@@ -514,7 +559,7 @@ pub fn load_instance() -> (Instance, Store<ClarityWasmContext>) {
     // We create a new instance and pass in any imported (host) functions.
     (
         Instance::new(&mut store, &module, &imports).expect("Couldn't create new module instance"),
-        store,
+        store
     )
 }
 

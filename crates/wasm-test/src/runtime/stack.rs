@@ -1,5 +1,9 @@
 use clarity::vm::Value;
+use wasmtime::{Store, AsContextMut};
+use core::fmt;
 use std::{cell::UnsafeCell, ops::Deref};
+
+use super::ClarityWasmContext;
 
 /*
 pub struct IndexTransition<T> {
@@ -79,6 +83,16 @@ impl Deref for HostPtr<'_> {
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl fmt::Display for HostPtr<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{ stack id: {}, ptr: {}, type: {:?} }}", 
+            self.stack.id,
+            self.inner,
+            self.val_type
+        )
     }
 }
 
@@ -179,7 +193,7 @@ impl AsFrame for StackFrame<'_> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Stack {
     id: u64,
     current_local_idx: UnsafeCell<i32>,
@@ -187,6 +201,37 @@ pub struct Stack {
     locals: UnsafeCell<Vec<*const Value>>,
     frames: UnsafeCell<Vec<FrameContext>>,
     result_buffer: UnsafeCell<Vec<*const Value>>,
+}
+
+impl fmt::Display for Stack {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unsafe {
+            write!(f, "\n>>> Stack dump\n")?;
+            write!(f, "----------------------------------------------\n")?;
+            write!(f, "id: {}\n", self.id)?;
+            write!(f, "locals count: {}\n", self.local_count())?;
+            write!(f, "locals index: {}\n", *self.current_local_idx.get() - 1)?;
+            write!(f, "locals: {:?}\n", *self.locals.get())?;
+            write!(f, "frame count: {}\n", self.get_frame_index())?;
+            write!(f, "frames: {:?}\n", *self.frames.get())?;
+            write!(f, "----------------------------------------------\n")?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for Stack {
+    fn default() -> Self {
+        Self { 
+            id: Default::default(), 
+            current_local_idx: Default::default(), 
+            next_frame_idx: Default::default(), 
+            locals: Default::default(), 
+            frames: Default::default(), 
+            result_buffer: Default::default() 
+        }
+    }
 }
 
 impl Stack {
@@ -206,6 +251,27 @@ impl Stack {
     }
 
     #[inline]
+    pub fn frame(
+        stack: &Stack,
+        mut store: Store<ClarityWasmContext>,
+        mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>
+    ) -> Store<ClarityWasmContext> {
+        unsafe {
+            // Create a new virtual frame.
+            let (frame, frame_index) = stack.new_frame();
+            // Call the provided function.
+            let frame_result: Vec<Value> = func(&mut store, &frame);
+            #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
+            // Move the output values from the frame to the result buffer.
+            stack.fill_result_buffer(frame_result);
+            // Drop the frame.
+            stack.drop_frame(frame_index);
+        }
+
+        store
+    }
+
+    #[inline]
     pub fn exec(
         &self,
         // Added the for<> below just as a reminder in case we use lifetimes later
@@ -215,10 +281,32 @@ impl Stack {
             // Create a new virtual frame.
             let (frame, frame_index) = self.new_frame();
             // Call the provided function.
-            let mut frame_result: Vec<Value> = func(frame);
-            #[cfg(test)] println!("Frame result count: {}", frame_result.len());
+            let frame_result: Vec<Value> = func(frame);
+            #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
             // Move the output values from the frame to the result buffer.
-            self.fill_result_buffer(&mut frame_result);
+            self.fill_result_buffer(frame_result);
+            // Drop the frame.
+            self.drop_frame(frame_index);
+        }
+
+        FrameResult {}
+    }
+
+    #[inline]
+    pub fn exec2(
+        self,
+        mut store: Store<ClarityWasmContext>,
+        // Added the for<> below just as a reminder in case we use lifetimes later
+        mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>,
+    ) -> FrameResult {
+        unsafe {
+            // Create a new virtual frame.
+            let (frame, frame_index) = self.new_frame();
+            // Call the provided function.
+            let frame_result: Vec<Value> = func(&mut store, &frame);
+            #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
+            // Move the output values from the frame to the result buffer.
+            self.fill_result_buffer(frame_result);
             // Drop the frame.
             self.drop_frame(frame_index);
         }
@@ -229,12 +317,12 @@ impl Stack {
     /// Clears and fills this [Stack]'s result buffer with raw pointers to the values
     /// contained in the provided [Vec].
     #[inline]
-    fn fill_result_buffer(&self, results: &mut Vec<Value>) {
+    pub(crate) fn fill_result_buffer(&self, results: Vec<Value>) {
         unsafe {
             let buffer = &mut *self.result_buffer.get();
             buffer.clear();
             for result in results {
-                buffer.push(result as *const _)
+                buffer.push(&result as *const _)
             }
         }
     }
@@ -243,11 +331,11 @@ impl Stack {
     /// fully backed by the [Stack] implementation and the "frame" keeps track of
     /// state via pointers and counters.
     #[inline]
-    unsafe fn new_frame(&self) -> (StackFrame, usize) {
+    pub(crate) unsafe fn new_frame(&self) -> (StackFrame, usize) {
         // Retrieve the index for a new frame and increment the frame index.
-        #[cfg(test)] println!("[new_frame] pre-increment={}", &*self.next_frame_idx.get());
+        #[cfg(test)] eprintln!("[new_frame] pre-increment={}", &*self.next_frame_idx.get());
         let (index, next_index) = self.increment_frame_index();
-        #[cfg(test)] println!("[new_frame] index={}, next_index={}", index, next_index);
+        #[cfg(test)] eprintln!("[new_frame] index={}, next_index={}", index, next_index);
 
         // Create a new frame context, which stores a little bit of information
         // about the frame that we'll need later.
@@ -267,12 +355,12 @@ impl Stack {
     /// being decremented and the top of the stack becoming its ancestor frame. This
     /// function returns a [FrameContext] representing the frame at the top of the stack.
     #[inline]
-    unsafe fn drop_frame(&self, index: usize) {
-        #[cfg(test)] println!("[drop_frame] current locals index: {}", *self.current_local_idx.get());
+    pub(crate) unsafe fn drop_frame(&self, index: usize) {
+        #[cfg(test)] eprintln!("[drop_frame] current locals index: {}", *self.current_local_idx.get());
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
         let (dropped_frame_index, current_index) = self.decrement_frame_index();
-        #[cfg(test)] println!(
+        #[cfg(test)] eprintln!(
             "[drop_frame] frame_index={}, dropped_frame_index={}, current_index={:?}",
             index, dropped_frame_index, current_index
         );
@@ -282,10 +370,10 @@ impl Stack {
         let frames = &mut *self.frames.get();
 
         // Remove the dropped frame, getting the removed `FrameContext`.
-        #[cfg(test)] println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", index, frames[index]);
+        #[cfg(test)] eprintln!("[drop_frame] dropped frame: ptr={:?}, value={:?}", index, frames[index]);
         let dropped_frame = frames.remove(dropped_frame_index);
-        #[cfg(test)] println!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame.frame_index, dropped_frame);
-        #[cfg(test)] println!("[drop_frame] current locals index: {}", *self.current_local_idx.get());
+        #[cfg(test)] eprintln!("[drop_frame] dropped frame: ptr={:?}, value={:?}", dropped_frame.frame_index, dropped_frame);
+        #[cfg(test)] eprintln!("[drop_frame] current locals index: {}", *self.current_local_idx.get());
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
@@ -295,7 +383,7 @@ impl Stack {
 
     /// Returns the index of the current (top) frame in this [Stack].
     #[inline]
-    fn get_frame_index(&self) -> usize {
+    pub(crate) fn get_frame_index(&self) -> usize {
         unsafe {
             *self.next_frame_idx.get()
         }
@@ -306,7 +394,7 @@ impl Stack {
     /// after the increment. This function is not meant to be called externally, it is used
     /// by `new_frame`.
     #[inline]
-    unsafe fn increment_frame_index(&self) -> (usize, usize) {
+    pub(crate) unsafe fn increment_frame_index(&self) -> (usize, usize) {
         let ptr = self.next_frame_idx.get();
         let current = *ptr;
         *ptr += 1;
@@ -318,7 +406,7 @@ impl Stack {
     /// after the decrement. This function is not meant to be called externally, it is used
     /// by `drop_frame` to remove frames after they have returned.
     #[inline]
-    unsafe fn decrement_frame_index(&self) -> (usize, Option<usize>) {
+    pub(crate) unsafe fn decrement_frame_index(&self) -> (usize, Option<usize>) {
         let next_frame_index_ptr = self.next_frame_idx.get();
         let next_frame_index = *next_frame_index_ptr;
         let current_frame_index = next_frame_index - 1;
@@ -328,18 +416,19 @@ impl Stack {
             1
         };
 
-        //println!("[decrement_frame_index] current_frame_index={}, next_frame_idx (upper)={}, target_frame_index={}",
-        //    current_frame_index, next_frame_index, target_frame_index);
+        #[cfg(test)]
+        println!("[decrement_frame_index] current_frame_index={}, next_frame_idx (upper)={}, target_frame_index={}",
+            current_frame_index, next_frame_index, target_frame_index);
 
         if target_frame_index == 0 {
-            //println!("[decrement_frame_index] target frame is 0, resetting...");
+            #[cfg(test)] eprintln!("[decrement_frame_index] target frame is 0, resetting...");
             *next_frame_index_ptr = 1;
             return (1, None);
         }
 
         if current_frame_index > 0 {
             *next_frame_index_ptr -= 1;
-            //println!("[decrement_frame_index] returning ({:?}, {:?})", current_frame_index, *next_frame_index_ptr);
+            #[cfg(test)] eprintln!("[decrement_frame_index] returning ({:?}, {:?})", current_frame_index, *next_frame_index_ptr);
             (current_frame_index, Some(*next_frame_index_ptr))
         } else {
             next_frame_index_ptr.replace(0);
@@ -349,7 +438,7 @@ impl Stack {
 
     /// Pushes a value to the stack.
     #[inline]
-    unsafe fn local_push(&self, value: Value) -> (i32, ValType) {
+    pub(crate) unsafe fn local_push(&self, value: Value) -> (i32, ValType) {
         unsafe {
             let backing_vec_len = (*self.locals.get()).len();
             let current_idx = self.current_local_idx.get();
@@ -360,10 +449,10 @@ impl Stack {
             let ptr = &value as *const Value;
 
             if current_idx_usize < backing_vec_len {
-                #[cfg(test)] println!("[local_push] setting value at index {}", current_idx_usize);
+                #[cfg(test)] eprintln!("[local_push] setting value at index {}", current_idx_usize);
                 (*self.locals.get())[current_idx_usize] = ptr;
             } else {
-                #[cfg(test)] println!("[local_push] pushing new value, current len={}, new index={}", backing_vec_len, current_idx_usize);
+                #[cfg(test)] eprintln!("[local_push] pushing new value, current len={}, new index={}", backing_vec_len, current_idx_usize);
                 (*self.locals.get()).push(ptr);
             }
 
@@ -372,15 +461,21 @@ impl Stack {
         }
     }
 
+    #[cfg(any(feature = "bench", rust_analyzer))]
     #[inline]
-    fn local_drop(&self, ptr: HostPtr) {
+    pub fn _local_push(&self, value: Value) -> (i32, ValType) {
+        unsafe { self.local_push(value) }
+    }
+
+    #[inline]
+    pub(crate) fn local_drop(&self, ptr: HostPtr) {
         unsafe {
             (&mut *self.locals.get())[*ptr as usize] = std::ptr::null();
         }
     }
 
     #[inline]
-    unsafe fn local_get(&self, ptr: i32) -> Option<&Value> {
+    pub(crate) unsafe fn local_get(&self, ptr: i32) -> Option<&Value> {
         unsafe {
             let raw_ptr = (*self.locals.get())[ptr as usize];
 
@@ -408,6 +503,33 @@ impl Stack {
     #[inline]
     pub fn local_count(&self) -> usize {
         unsafe { *self.current_local_idx.get() as usize }
+    }
+}
+
+pub struct StackExecContext {}
+
+impl StackExecContext {
+
+    #[inline]
+    pub fn exec(
+        stack: Stack,
+        mut store: Store<ClarityWasmContext>,
+        // Added the for<> below just as a reminder in case we use lifetimes later
+        mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>,
+    ) -> FrameResult {
+        unsafe {
+            // Create a new virtual frame.
+            let (frame, frame_index) = stack.new_frame();
+            // Call the provided function.
+            let frame_result: Vec<Value> = func(&mut store, &frame);
+            #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
+            // Move the output values from the frame to the result buffer.
+            stack.fill_result_buffer(frame_result);
+            // Drop the frame.
+            stack.drop_frame(frame_index);
+        }
+
+        FrameResult {}
     }
 }
 

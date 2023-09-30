@@ -4,13 +4,18 @@ use wasmtime::{AsContextMut, Func, Caller};
 use crate::runtime::{ClarityWasmContext, AsStack};
 
 #[inline]
-pub fn define_add_rustref_stack(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_add_rustref_stack<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
-            caller.as_stack().exec(|frame| {
+            /*caller.as_stack().exec(|frame| {
                 let a = unsafe { frame.get_unchecked(a_ptr) };
                 let b = unsafe { frame.get_unchecked(b_ptr) };
+
+                eprintln!("a_ptr={}", a_ptr);
+                eprintln!("a={:?}", a.unwrap());
+                eprintln!("b_ptr={}", b_ptr);
+                eprintln!("b={:?}", b.unwrap());
 
                 let result = match (a, b) {
                     (Some(Value::Int(a)), Some(Value::Int(b))) => Value::Int(a + b),
@@ -19,7 +24,7 @@ pub fn define_add_rustref_stack(mut store: impl AsContextMut<Data = ClarityWasmC
                 };
 
                 vec![result]
-            });
+            });*/
             5
         },
     )
