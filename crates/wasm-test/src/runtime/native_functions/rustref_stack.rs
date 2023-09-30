@@ -1,14 +1,14 @@
 use clarity::vm::Value;
 use wasmtime::{AsContextMut, Func, Caller};
 
-use crate::runtime::{ClarityWasmContext, AsStack};
+use crate::runtime::{ClarityWasmContext, AsStack, AsCallerExec, StackFrame};
 
 #[inline]
 pub fn define_add_rustref_stack<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
-            /*caller.as_stack().exec(|frame| {
+            caller.as_stack().exec(|frame: StackFrame<'_>| {
                 let a = unsafe { frame.get_unchecked(a_ptr) };
                 let b = unsafe { frame.get_unchecked(b_ptr) };
 
@@ -24,7 +24,7 @@ pub fn define_add_rustref_stack<'a>(mut store: impl AsContextMut<Data = ClarityW
                 };
 
                 vec![result]
-            });*/
+            });
             5
         },
     )

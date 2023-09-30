@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use walrus::FunctionId;
 use wasm_test::{
     get_all_functions, 
-    runtime::{ClarityWasmContext, StackFrame, AsStack, Stack, StackExecContext, AsExec}, 
+    runtime::{ClarityWasmContext, StackFrame, AsStack, Stack, StackExecContext, AsStoreExec}, 
     serialization::serialize_clarity_value
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
@@ -80,7 +80,7 @@ impl GetImportedFunctionByName for &[WasmFunctionMapping] {
 
 pub fn fold_add_square_rustref(c: &mut Criterion) {
     let stack = Stack::default();
-    let (instance, store) = load_instance(&stack);
+    let (instance, store) = load_instance();
     let mut store = RefCell::new(store);
 
     let instance_fn = instance
@@ -141,7 +141,7 @@ pub fn fold_add_square_rustref(c: &mut Criterion) {
 /// Fold-add-square using Extrefs
 pub fn fold_add_square_externref(c: &mut Criterion) {
     let stack = Stack::default();
-    let (instance, mut store) = load_instance(&stack);
+    let (instance, mut store) = load_instance();
 
     let instance_fn = instance
         .get_func(&mut store, "fold_add_square_extref_test")
@@ -208,7 +208,7 @@ pub fn add_wat(c: &mut Criterion) {
 /// Add using Wasmtime Externrefs.
 pub fn add_externref(c: &mut Criterion) {
     let stack = Stack::default();
-    let (instance, mut store) = load_instance(&stack);
+    let (instance, mut store) = load_instance();
 
     let instance_fn = instance
         .get_func(&mut store, "add_extref_test")
@@ -242,7 +242,7 @@ pub fn add_externref(c: &mut Criterion) {
 /// Add using Rust references.
 pub fn add_rustref(c: &mut Criterion) {
     let stack = Stack::default();
-    let (instance, mut store) = load_instance(&stack);
+    let (instance, mut store) = load_instance();
 
     let instance_fn = instance
         .get_func(&mut store, "add_rustref_test")
@@ -272,7 +272,7 @@ pub fn add_rustref(c: &mut Criterion) {
 pub fn add_rustref_stack(c: &mut Criterion) {
     c.bench_function("add/rustref (stack)/i128", move |b| {
         let stack = Stack::default();
-        let (instance, mut store) = load_instance(&stack);
+        let (instance, mut store) = load_instance();
 
         let _instance_fn = instance
             .get_func(store.as_context_mut(), "add_rustref_stack_test")
@@ -329,7 +329,7 @@ pub fn add_rustref_stack(c: &mut Criterion) {
 /// Add using Rust references.
 pub fn add_rustref_direct(c: &mut Criterion) {
     let stack = Stack::default();
-    let (_, mut store) = load_instance(&stack);
+    let (_, mut store) = load_instance();
 
     let a_ptr = store.data_mut().values.push(Value::Int(1));
     let b_ptr = store.data_mut().values.push(Value::Int(2));
@@ -353,7 +353,7 @@ pub fn add_rustref_direct(c: &mut Criterion) {
 /// Add using native Wasm types.
 pub fn add_native(c: &mut Criterion) {
     let stack = Stack::default();
-    let (instance, mut store) = load_instance(&stack);
+    let (instance, mut store) = load_instance();
 
     c.bench_function("add/native/i128", |b| {
         let instance_fn = instance
@@ -381,7 +381,7 @@ pub fn add_native(c: &mut Criterion) {
 /// Add using Wasm memory and serialization of Clarity types.
 pub fn add_memory(c: &mut Criterion) {
     let stack = Stack::default();
-    let (instance, mut store) = load_instance(&stack);
+    let (instance, mut store) = load_instance();
 
     let instance_fn = instance
         .get_func(&mut store, "add_memory_test")
@@ -521,7 +521,7 @@ pub fn load_stdlib() -> (Instance, Store<()>) {
 }
 
 /// Helper function for loading the generated Wasm binary.
-pub fn load_instance(stack: &Stack) -> (Instance, Store<ClarityWasmContext>) {
+pub fn load_instance() -> (Instance, Store<ClarityWasmContext>) {
     // Generate a wasm module (see `wasm_generator.rs`) which has a `toplevel` function
     // which in turn calls the below defined wrapped function `func`.
     let wasm_bytes = generate_wasm();

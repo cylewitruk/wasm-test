@@ -19,6 +19,8 @@ pub use wasm_native::*;
 use wasmtime::{AsContextMut, Func};
 use super::ClarityWasmContext;
 
+pub use rustref_stack::*;
+
 /// Holds a native function name and function implementation.
 #[derive(Debug)]
 pub struct FuncMap {
