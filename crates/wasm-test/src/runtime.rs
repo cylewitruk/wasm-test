@@ -29,7 +29,7 @@ pub struct ClarityWasmContext {
 }
 
 impl<'a> ClarityWasmContext {
-
+    #[inline]
     pub fn new(stack: Rc<Stack>) -> Self {
         Self {
             alloc: Default::default(),
@@ -73,6 +73,7 @@ pub trait AsStoreExec<'a> {
 }
 
 impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
+    #[inline]
     fn exec (
         &'a mut self,
         stack: Rc<Stack>,
@@ -94,6 +95,7 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
 }
 
 pub trait AsCallerExec<'a> {
+    #[inline]
     fn exec (&'a mut self,
         stack: &'a Stack,
         // Added the for<> below just as a reminder in case we use lifetimes later
@@ -102,6 +104,7 @@ pub trait AsCallerExec<'a> {
 }
 
 impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
+    #[inline]
     fn exec (&'a mut self,
         stack: &'a Stack,
         // Added the for<> below just as a reminder in case we use lifetimes later
@@ -153,7 +156,7 @@ mod test {
             .types
             .add(&[ValType::I32, ValType::I32], &[ValType::I32]);
 
-        let (function_id, import_id) = walrus_module
+        let (function_id, _) = walrus_module
             .add_import_func("clarity", "add_rustref_stack", add_rustref_stack_ty);
 
         // Define the Wasm test function.

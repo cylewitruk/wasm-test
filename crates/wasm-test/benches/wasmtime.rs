@@ -20,13 +20,13 @@ criterion_group! {
     name = add_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
     targets = 
-        //add_wat, 
-        //add_externref, 
-        //add_rustref, 
+        add_wat, 
+        add_externref, 
+        add_rustref, 
         add_rustref_stack, 
-        //add_rustref_direct, 
-        //add_native, 
-        //add_memory,
+        add_rustref_direct, 
+        add_native, 
+        add_memory,
 }
 
 criterion_main!(
@@ -281,10 +281,11 @@ pub fn add_rustref_stack(c: &mut Criterion) {
         store.exec(Rc::clone(&stack), |_frame, store| {
 
             b.iter_batched(|| {
-                let store = &mut store.as_context_mut();
-                _instance_fn.call(store, &[], &mut []);
+                
             }, 
             |_| {
+                let store = &mut store.as_context_mut();
+                _instance_fn.call(store, &[], &mut []);
             },
             BatchSize::SmallInput
         );
@@ -329,7 +330,7 @@ pub fn add_rustref_stack(c: &mut Criterion) {
 /// Add using Rust references.
 pub fn add_rustref_direct(c: &mut Criterion) {
     let stack = Rc::new(Stack::default());
-    let (instance, mut store) = load_instance(Rc::clone(&stack));
+    let (_, mut store) = load_instance(Rc::clone(&stack));
 
     let a_ptr = store.data_mut().values.push(Value::Int(1));
     let b_ptr = store.data_mut().values.push(Value::Int(2));

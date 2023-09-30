@@ -11,3 +11,5 @@ bench target:
 install:
     cargo install -f just
 
+add-bench:
+    cargo criterion --bench wasmtime --message-format=json | criterion-table > BENCHMARKS.md
