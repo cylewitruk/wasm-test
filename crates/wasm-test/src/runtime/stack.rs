@@ -1,5 +1,5 @@
 use clarity::vm::Value;
-use wasmtime::{Store, AsContextMut};
+use wasmtime::Store;
 use core::fmt;
 use std::{cell::UnsafeCell, ops::Deref};
 
@@ -178,15 +178,15 @@ impl StackFrame<'_> {
 impl std::fmt::Display for StackFrame<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unsafe {
-            write!(f, "\n>>> Stack dump\n")?;
-            write!(f, "----------------------------------------------\n")?;
-            write!(f, "id: {}\n", self.0.id)?;
-            write!(f, "locals count: {}\n", self.0.local_count())?;
-            write!(f, "locals index: {}\n", *self.0.current_local_idx.get() - 1)?;
-            write!(f, "locals: {:?}\n", *self.0.locals.get())?;
-            write!(f, "frame count: {}\n", self.0.get_frame_index())?;
-            write!(f, "frames: {:?}\n", *self.0.frames.get())?;
-            write!(f, "----------------------------------------------\n")?;
+            writeln!(f, "\n>>> Stack dump")?;
+            writeln!(f, "----------------------------------------------")?;
+            writeln!(f, "id: {}", self.0.id)?;
+            writeln!(f, "locals count: {}", self.0.local_count())?;
+            writeln!(f, "locals index: {}", *self.0.current_local_idx.get() - 1)?;
+            writeln!(f, "locals: {:?}", *self.0.locals.get())?;
+            writeln!(f, "frame count: {}", self.0.get_frame_index())?;
+            writeln!(f, "frames: {:?}", *self.0.frames.get())?;
+            writeln!(f, "----------------------------------------------\n")?;
         }
 
         Ok(())
@@ -224,15 +224,15 @@ pub struct Stack {
 impl fmt::Display for Stack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unsafe {
-            write!(f, "\n>>> Stack dump\n")?;
-            write!(f, "----------------------------------------------\n")?;
-            write!(f, "id: {}\n", self.id)?;
-            write!(f, "locals count: {}\n", self.local_count())?;
-            write!(f, "locals index: {}\n", *self.current_local_idx.get() - 1)?;
-            write!(f, "locals: {:?}\n", *self.locals.get())?;
-            write!(f, "frame count: {}\n", self.get_frame_index())?;
-            write!(f, "frames: {:?}\n", *self.frames.get())?;
-            write!(f, "----------------------------------------------\n")?;
+            writeln!(f, "\n>>> Stack dump")?;
+            writeln!(f, "----------------------------------------------")?;
+            writeln!(f, "id: {}", self.id)?;
+            writeln!(f, "locals count: {}", self.local_count())?;
+            writeln!(f, "locals index: {}", *self.current_local_idx.get() - 1)?;
+            writeln!(f, "locals: {:?}", *self.locals.get())?;
+            writeln!(f, "frame count: {}", self.get_frame_index())?;
+            writeln!(f, "frames: {:?}", *self.frames.get())?;
+            writeln!(f, "----------------------------------------------")?;
         }
 
         Ok(())
@@ -269,7 +269,7 @@ impl Stack {
     }
 
     #[inline]
-    pub fn frame(
+    pub fn frame<'a>(
         stack: &Stack,
         mut store: Store<ClarityWasmContext>,
         mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>

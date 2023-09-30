@@ -1,7 +1,7 @@
 use clarity::vm::Value;
 use wasmtime::{AsContextMut, Func, Caller};
 
-use crate::runtime::{ClarityWasmContext, AsStack, AsCallerExec, StackFrame};
+use crate::runtime::{ClarityWasmContext, AsStack, StackFrame};
 
 #[inline]
 pub fn define_add_rustref_stack<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {

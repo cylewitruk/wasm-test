@@ -1,4 +1,4 @@
-use crate::tests::runtime::helpers::*;
+use crate::{tests::runtime::helpers::*, runtime::Stack};
 use clarity::vm::Value;
 use test_case::test_case;
 use wasmtime::{ExternRef, Val};
@@ -6,7 +6,8 @@ use wasmtime::{ExternRef, Val};
 #[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]
 fn test_add_extref(a: Value, b: Value) -> Value {
-    let mut store = get_new_store();
+    let stack = Stack::default();
+    let mut store = get_new_store(stack);
     let add_fn = crate::runtime::native_functions::define_add_extref(&mut store);
     let params = &[
         Val::ExternRef(Some(ExternRef::new(a))),
@@ -29,7 +30,8 @@ fn test_add_extref(a: Value, b: Value) -> Value {
 #[test_case(Value::Int(1), Value::Int(2) => Value::Int(3))]
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(5))]
 fn test_add_rustref(a: Value, b: Value) -> Value {
-    let mut store = get_new_store();
+    let stack = Stack::default();
+    let mut store = get_new_store(stack);
 
     let a_ptr = store.data_mut().values.push(a);
     let b_ptr = store.data_mut().values.push(b);
@@ -53,7 +55,8 @@ fn test_add_rustref(a: Value, b: Value) -> Value {
 #[test_case(Value::UInt(2), Value::UInt(3) => Value::UInt(6))]
 #[test_case(Value::UInt(5), Value::UInt(5) => Value::UInt(25))]
 fn test_mul_rustref(a: Value, b: Value) -> Value {
-    let mut store = get_new_store();
+    let stack = Stack::default();
+    let mut store = get_new_store(stack);
 
     let a_ptr = store.data_mut().values.push(a);
     let b_ptr = store.data_mut().values.push(b);
@@ -75,7 +78,8 @@ fn test_mul_rustref(a: Value, b: Value) -> Value {
 
 #[test]
 fn test_fold_rustref() {
-    let mut store = get_new_store();
+    let stack = Stack::default();
+    let mut store = get_new_store(stack);
 
     let fold_fn = crate::runtime::native_functions::define_fold_rustref(&mut store);
     let add_fn = crate::runtime::native_functions::define_add_rustref(&mut store);

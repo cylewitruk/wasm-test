@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use clarity::vm::{
     types::{ListData, ListTypeData, SequenceData, TypeSignature},
     Value,
@@ -11,7 +13,9 @@ criterion_main!(benches);
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("context/push/i128", move |b| {
-        let mut store = get_new_store();
+        let stack = Rc::new(Stack::default());
+        let mut store = get_new_store(Rc::clone(&stack));
+        
         let data = store.data_mut();
 
         b.iter_batched(
@@ -26,7 +30,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("context/take/i128", move |b| {
-        let mut store = get_new_store();
+        let stack = Rc::new(Stack::default());
+        let mut store = get_new_store(Rc::clone(&stack));
+        
         let value = Value::Int(1);
         let ptr = store.data_mut().values.push(value);
 
@@ -36,7 +42,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("context/drop/i128", move |b| {
-        let mut store = get_new_store();
+        let stack = Rc::new(Stack::default());
+        let mut store = get_new_store(Rc::clone(&stack));
         let value = Value::Int(1);
         let ptr = store.data_mut().values.push(value);
 
@@ -46,7 +53,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("context/push/list", move |b| {
-        let mut store = get_new_store();
+        let stack = Rc::new(Stack::default());
+        let mut store = get_new_store(Rc::clone(&stack));
 
         let value = Value::Sequence(SequenceData::List(ListData {
             data: vec![
@@ -71,7 +79,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("context/take/list", move |b| {
-        let mut store = get_new_store();
+        let stack = Rc::new(Stack::default());
+        let mut store = get_new_store(Rc::clone(&stack));
 
         let value = Value::Sequence(SequenceData::List(ListData {
             data: vec![
@@ -93,7 +102,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("context/drop/list", move |b| {
-        let mut store = get_new_store();
+        let stack = Rc::new(Stack::default());
+        let mut store = get_new_store(Rc::clone(&stack));
 
         let value = Value::Sequence(SequenceData::List(ListData {
             data: vec![
@@ -117,11 +127,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
 /// Helper function. Initializes a clean new `Store` using defaults, but
 /// with WASM reference types enabled.
-fn get_new_store() -> Store<ClarityWasmContext> {
+fn get_new_store(stack: Rc<Stack>) -> Store<ClarityWasmContext> {
     let mut config = Config::default();
     config.wasm_reference_types(true);
     let engine = Engine::new(&config).expect("Failed to initialize Wasmtime Engine.");
-    let stack = Stack::default();
-    let context = ClarityWasmContext::new();
+    let context = ClarityWasmContext::new(Rc::clone(&stack));
     Store::new(&engine, context)
 }

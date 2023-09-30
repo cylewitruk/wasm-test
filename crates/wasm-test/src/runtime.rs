@@ -3,8 +3,10 @@ pub(crate) mod alloc;
 pub mod stack;
 pub mod native_functions;
 
+use std::rc::Rc;
+
 use clarity::vm::Value;
-use wasmtime::{Caller, Store, AsContextMut};
+use wasmtime::{Caller, Store};
 use crate::ValuesContext;
 
 pub use native_functions::get_all_functions;
@@ -19,23 +21,16 @@ pub use crate::runtime::alloc::WasmAllocator;
 /// use one of the `wrap` variants which accepts a Wasmtime [Caller] as
 /// the first argument. Once you have a caller, you get an instance to
 /// the [ClarityWasmContext] by using `caller.data()` or `caller.data_mut()`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ClarityWasmContext {
     pub alloc: WasmAllocator,
     pub values: ValuesContext,
-    pub stack: Stack,
+    pub stack: Rc<Stack>,
 }
 
-impl ClarityWasmContext {
-    pub fn new() -> Self {
-        Self {
-            alloc: Default::default(),
-            values: Default::default(),
-            stack: Stack::default()
-        }
-    }
+impl<'a> ClarityWasmContext {
 
-    pub fn with_stack(stack: Stack) -> Self {
+    pub fn new(stack: Rc<Stack>) -> Self {
         Self {
             alloc: Default::default(),
             values: Default::default(),
@@ -71,7 +66,7 @@ impl AsStack for Store<ClarityWasmContext> {
 
 pub trait AsStoreExec<'a> {
     fn exec (&'a mut self,
-        stack: &'a Stack,
+        stack: Rc<Stack>,
         // Added the for<> below just as a reminder in case we use lifetimes later
         func: impl FnOnce(StackFrame, &'a mut Store<ClarityWasmContext>) -> Vec<Value>,
     );
@@ -80,7 +75,7 @@ pub trait AsStoreExec<'a> {
 impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
     fn exec (
         &'a mut self,
-        stack: &'a Stack,
+        stack: Rc<Stack>,
         // Added the for<> below just as a reminder in case we use lifetimes later
         func: impl FnOnce(StackFrame, &'a mut Store<ClarityWasmContext>) -> Vec<Value>,
     ) {
@@ -88,7 +83,7 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
             // Create a new virtual frame.
             let (frame, frame_index) = stack.new_frame();
             // Call the provided function.
-            let mut frame_result: Vec<Value> = func(frame, self);
+            let frame_result: Vec<Value> = func(frame, self);
             #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
             // Move the output values from the frame to the result buffer.
             stack.fill_result_buffer(frame_result);
@@ -138,9 +133,10 @@ mod test {
     #[test]
     fn test_as_store_exec() {
         let stack = Stack::default();
+        let stack_rc = Rc::new(stack);
         let config = Config::default();
         let engine = Engine::new(&config).unwrap();
-        let data = ClarityWasmContext::with_stack(stack);
+        let data = ClarityWasmContext::new(Rc::clone(&stack_rc));
         let mut store = Store::new(&engine, data);
 
         // Convert the (name, func) pairs to a vec of `Export`s (needed for the Instance).
@@ -188,11 +184,11 @@ mod test {
             .get_func(&mut store, "add_rustref_stack_test")
             .expect("Failed to get fn");
 
-        store.exec(&stack, |frame, store| {
+        store.exec(Rc::clone(&stack_rc), |frame, store| {
             let ptr1 = frame.push(Value::Int(1024));
             let ptr2 = frame.push(Value::Int(2048));
 
-            println!("{}", &stack);
+            //println!("{}", &stack);
             
             println!("[test] calling function");
 

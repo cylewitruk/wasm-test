@@ -1,9 +1,10 @@
-use crate::tests::runtime::helpers::*;
+use crate::{tests::runtime::helpers::*, runtime::Stack};
 use clarity::vm::Value;
 
 #[test]
 fn test_new_ptr() {
-    let mut store = get_new_store();
+    let stack = Stack::default();
+    let mut store = get_new_store(stack);
 
     let values = &mut store.data_mut().values;
 

@@ -1,4 +1,4 @@
-use crate::runtime::AsStack;
+use crate::runtime::{AsStack, Stack};
 use crate::runtime::{stack::StackFrame, ClarityWasmContext};
 use crate::tests::runtime::helpers::*;
 use clarity::vm::Value;
@@ -7,7 +7,8 @@ use wasmtime::{Caller, Func};
 /// Test function
 #[test]
 fn test() {
-    let mut store = get_new_store();
+    let stack = Stack::default();
+    let mut store = get_new_store(stack);
 
     let func = Func::wrap(&mut store, move |caller: Caller<'_, ClarityWasmContext>| {
         /*let stack = caller.as_stack();
