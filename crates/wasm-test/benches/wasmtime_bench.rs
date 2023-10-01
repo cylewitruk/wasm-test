@@ -1,17 +1,15 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use clarity::vm::Value;
-use criterion::{criterion_group, BatchSize, Criterion, black_box};
+use criterion::{black_box, criterion_group, BatchSize, Criterion};
+use log::*;
 use walrus::FunctionId;
 use wasm_test::{
     get_all_functions,
-    runtime::{
-        AsStoreExec, ClarityWasmContext, Stack,
-    },
+    runtime::{AsStoreExec, ClarityWasmContext, Stack},
     serialization::serialize_clarity_value,
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
-use log::*;
 
 criterion_group!(
     fold_add_square_benches,
@@ -38,15 +36,15 @@ fn main() {
     #[cfg(feature = "logging")]
     {
         env_logger::Builder::from_env(
-            env_logger::Env::default()
-                .default_filter_or("wasm_test,wasmtime_bench"))
-                .is_test(true)
-                .init();
+            env_logger::Env::default().default_filter_or("wasm_test,wasmtime_bench"),
+        )
+        .is_test(true)
+        .init();
         /*simple_logger::SimpleLogger::new()
-            .with_colors(true)
-            .with_level(log::LevelFilter::Trace)
-            .init()
-            .unwrap();*/
+        .with_colors(true)
+        .with_level(log::LevelFilter::Trace)
+        .init()
+        .unwrap();*/
     }
     info!("HELLO");
 

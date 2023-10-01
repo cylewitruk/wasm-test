@@ -6,7 +6,6 @@ use wasmtime::Store;
 
 use super::ClarityWasmContext;
 
-
 /// Value type indicator, indicating the type of Clarity [Value] a given
 /// [HostPtr] is pointing to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -211,7 +210,7 @@ pub struct Stack {
     locals: UnsafeCell<Vec<*const Value>>,
     frames: UnsafeCell<Vec<FrameContext>>,
     result_buffer: UnsafeCell<Vec<*const Value>>,
-    owned_values: UnsafeCell<Vec<Value>>
+    owned_values: UnsafeCell<Vec<Value>>,
 }
 
 impl fmt::Display for Stack {
@@ -452,7 +451,7 @@ impl Stack {
         //    current_frame_index, next_frame_index, target_frame_index);
 
         if target_frame_index == 0 {
-        //    debug!("[decrement_frame_index] target frame is 0, resetting...");
+            //    debug!("[decrement_frame_index] target frame is 0, resetting...");
             *next_frame_index_ptr = 1;
             return (1, None);
         }
@@ -534,15 +533,15 @@ impl Stack {
         //debug!("[local_get] retrieving value at ptr {}", ptr);
         unsafe {
             let raw_ptr = (*self.locals.get())[ptr as usize];
-        //    debug!("[local_get] raw pointer: {:?}", raw_ptr);
+            //    debug!("[local_get] raw pointer: {:?}", raw_ptr);
 
             if raw_ptr.is_null() {
-        //        warn!("[local_get] pointer is null.");
+                //        warn!("[local_get] pointer is null.");
                 None
             } else {
-        //        debug!("[local_get] pointer is not null, attempting to retrieve value");
+                //        debug!("[local_get] pointer is not null, attempting to retrieve value");
                 let value = &*raw_ptr;
-        //        debug!("[local_get] got value: {:?}", value);
+                //        debug!("[local_get] got value: {:?}", value);
                 Some(&*raw_ptr)
             }
         }
@@ -573,7 +572,6 @@ impl Stack {
 /// definitely crash and burn if used incorrectly.
 #[cfg(any(feature = "bench", rust_analyzer))]
 impl Stack {
-    
     #[inline]
     pub fn _local_push(&self, value: &Value) -> (i32, ValType) {
         unsafe { self.local_push(value) }
@@ -592,10 +590,10 @@ mod test {
         #[cfg(feature = "logging")]
         {
             let _ = env_logger::Builder::from_env(
-                env_logger::Env::default()
-                    .default_filter_or("wasm_test"))
-                    .is_test(true)
-                    .try_init();
+                env_logger::Env::default().default_filter_or("wasm_test"),
+            )
+            .is_test(true)
+            .try_init();
         }
     }
 
