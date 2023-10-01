@@ -1,5 +1,8 @@
-use clarity::vm::{Value, types::{SequenceData, CharType}};
-use wasmtime::{Func, AsContextMut, Caller, ExternRef, Val, AsContext};
+use clarity::vm::{
+    types::{CharType, SequenceData},
+    Value,
+};
+use wasmtime::{AsContext, AsContextMut, Caller, ExternRef, Func, Val};
 
 use crate::runtime::ClarityWasmContext;
 

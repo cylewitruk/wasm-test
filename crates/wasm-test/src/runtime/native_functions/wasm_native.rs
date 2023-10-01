@@ -1,4 +1,4 @@
-use wasmtime::{Func, AsContextMut};
+use wasmtime::{AsContextMut, Func};
 
 /// Defines the `add_native_int128` function. This function makes use of Wasm "native"
 /// types for parameters and return values. As Wasm doesn't have support for 128-bit

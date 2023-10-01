@@ -15,7 +15,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("context/push/i128", move |b| {
         let stack = Rc::new(Stack::default());
         let mut store = get_new_store(Rc::clone(&stack));
-        
+
         let data = store.data_mut();
 
         b.iter_batched(
@@ -32,7 +32,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("context/take/i128", move |b| {
         let stack = Rc::new(Stack::default());
         let mut store = get_new_store(Rc::clone(&stack));
-        
+
         let value = Value::Int(1);
         let ptr = store.data_mut().values.push(value);
 

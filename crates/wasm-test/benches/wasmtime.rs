@@ -1,12 +1,14 @@
-use std::{cell::RefCell, time::Duration, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use clarity::vm::Value;
-use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use walrus::FunctionId;
 use wasm_test::{
-    get_all_functions, 
-    runtime::{ClarityWasmContext, StackFrame, AsStack, Stack, StackExecContext, AsStoreExec, HostPtr}, 
-    serialization::serialize_clarity_value
+    get_all_functions,
+    runtime::{
+        AsStack, AsStoreExec, ClarityWasmContext, HostPtr, Stack, StackExecContext, StackFrame,
+    },
+    serialization::serialize_clarity_value,
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
 
@@ -19,19 +21,18 @@ criterion_group!(
 criterion_group! {
     name = add_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
-    targets = 
-        //add_wat, 
-        //add_externref, 
-        //add_rustref, 
-        add_rustref_stack, 
-        //add_rustref_direct, 
-        //add_native, 
+    targets =
+        //add_wat,
+        //add_externref,
+        //add_rustref,
+        add_rustref_stack,
+        //add_rustref_direct,
+        //add_native,
         //add_memory,
 }
 
-fn main(){
-    coredump::register_panic_handler()
-        .expect("Failed to register panic handler");
+fn main() {
+    coredump::register_panic_handler().expect("Failed to register panic handler");
 
     #[cfg(feature = "logging")]
     {
@@ -45,13 +46,11 @@ fn main(){
     //fold_add_square_benches();
     add_benches();
 
-    Criterion::default()
-        .configure_from_args()
-        .final_summary();
-  }
+    Criterion::default().configure_from_args().final_summary();
+}
 
 /*criterion_main!(
-    //fold_add_square_benches, 
+    //fold_add_square_benches,
     add_benches,
 );*/
 
@@ -311,21 +310,16 @@ pub fn add_rustref_stack(c: &mut Criterion) {
         let results = &mut vec![Val::null()];
 
         store.exec(Rc::clone(&stack), |_frame, store| {
-
-            b.iter_batched(|| {
-                
-            }, 
-            |_| {
-                let store = &mut store.as_context_mut();
-                instance_fn
-                    .call(
-                        store, 
-                        &[Val::I32(ptr1), Val::I32(ptr2)], 
-                        results)
-                    .expect("failed to call fn");
-            },
-            BatchSize::SmallInput
-        );
+            b.iter_batched(
+                || {},
+                |_| {
+                    let store = &mut store.as_context_mut();
+                    instance_fn
+                        .call(store, &[Val::I32(ptr1), Val::I32(ptr2)], results)
+                        .expect("failed to call fn");
+                },
+                BatchSize::SmallInput,
+            );
 
             vec![]
         });
@@ -547,7 +541,7 @@ pub fn load_instance(stack: Rc<Stack>) -> (Instance, Store<ClarityWasmContext>) 
         .expect("Failed to precompile module");
 
     // Initialize the wasmtime store (using a custom state type).
-    
+
     let state = ClarityWasmContext::new(Rc::clone(&stack));
     let mut store = Store::new(&engine, state);
 
@@ -566,7 +560,7 @@ pub fn load_instance(stack: Rc<Stack>) -> (Instance, Store<ClarityWasmContext>) 
     // We create a new instance and pass in any imported (host) functions.
     (
         Instance::new(&mut store, &module, &imports).expect("Couldn't create new module instance"),
-        store
+        store,
     )
 }
 
@@ -910,7 +904,9 @@ fn define_add_rustref_stack_test(
         .call(add_rustref_stack_id);
 
     let add_rustref_test_id = add_rustref_stack_test_fn.finish(vec![a, b], &mut module.funcs);
-    module.exports.add("add_rustref_stack_test", add_rustref_test_id);
+    module
+        .exports
+        .add("add_rustref_stack_test", add_rustref_test_id);
 
     WasmFunctionMapping::new_export("add_rustref_test", add_rustref_test_id)
 }

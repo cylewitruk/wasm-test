@@ -1,8 +1,8 @@
 use clarity::vm::Value;
-use wasmtime::Store;
 use core::fmt;
-use std::{cell::UnsafeCell, ops::Deref};
 use log::*;
+use std::{cell::UnsafeCell, ops::Deref};
+use wasmtime::Store;
 
 use super::ClarityWasmContext;
 
@@ -57,7 +57,7 @@ pub struct HostPtr<'a> {
 
 impl<'a> HostPtr<'a> {
     /// Instantiates a new [HostPtr] instance. Note that it is _critical_ that the
-    /// `inner` parameter points to a valid index+reference in the backing [Vec]. 
+    /// `inner` parameter points to a valid index+reference in the backing [Vec].
     /// Failure to do so will almost certainly result in undefined behavior when trying to
     /// read back the [Value].
     #[inline]
@@ -89,10 +89,10 @@ impl Deref for HostPtr<'_> {
 
 impl fmt::Display for HostPtr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{ stack id: {}, ptr: {}, type: {:?} }}", 
-            self.stack.id,
-            self.inner,
-            self.val_type
+        write!(
+            f,
+            "{{ stack id: {}, ptr: {}, type: {:?} }}",
+            self.stack.id, self.inner, self.val_type
         )
     }
 }
@@ -145,7 +145,7 @@ impl StackFrame<'_> {
     }
 
     /// Gets a value from this [Stack] using a previously received [HostPtr].
-    /// 
+    ///
     /// Note: The provided [HostPtr] can only be used to retrieve values from
     /// the same [Stack] which created it. Trying to pass a [HostPtr] created by
     /// another [Stack] instance will panic.
@@ -167,7 +167,10 @@ impl StackFrame<'_> {
     /// correct value.
     #[inline]
     pub unsafe fn get_unchecked(&self, ptr: i32) -> Option<&Value> {
-        debug!("[get_unchecked] calling into stack to retrieve value for ptr {}", ptr);
+        debug!(
+            "[get_unchecked] calling into stack to retrieve value for ptr {}",
+            ptr
+        );
         self.0.local_get(ptr)
     }
 
@@ -243,13 +246,13 @@ impl fmt::Display for Stack {
 
 impl Default for Stack {
     fn default() -> Self {
-        Self { 
-            id: rand::random::<u64>(), 
-            current_local_idx: Default::default(), 
-            next_frame_idx: Default::default(), 
-            locals: Default::default(), 
-            frames: Default::default(), 
-            result_buffer: Default::default() 
+        Self {
+            id: rand::random::<u64>(),
+            current_local_idx: Default::default(),
+            next_frame_idx: Default::default(),
+            locals: Default::default(),
+            frames: Default::default(),
+            result_buffer: Default::default(),
         }
     }
 }
@@ -274,7 +277,7 @@ impl Stack {
     pub fn frame(
         stack: &Stack,
         mut store: Store<ClarityWasmContext>,
-        mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>
+        mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>,
     ) -> Store<ClarityWasmContext> {
         unsafe {
             // Create a new virtual frame.
@@ -354,9 +357,15 @@ impl Stack {
     #[inline]
     pub(crate) unsafe fn new_frame(&self) -> (StackFrame, usize) {
         // Retrieve the index for a new frame and increment the frame index.
-        debug!("[new_frame] (pre-increment) next-frame-idx={}", &*self.next_frame_idx.get());
+        debug!(
+            "[new_frame] (pre-increment) next-frame-idx={}",
+            &*self.next_frame_idx.get()
+        );
         let (index, next_index) = self.increment_frame_index();
-        debug!("[new_frame] (post-increment) index={}, next_index={}", index, next_index);
+        debug!(
+            "[new_frame] (post-increment) index={}, next_index={}",
+            index, next_index
+        );
 
         // Create a new frame context, which stores a little bit of information
         // about the frame that we'll need later.
@@ -377,7 +386,10 @@ impl Stack {
     /// function returns a [FrameContext] representing the frame at the top of the stack.
     #[inline]
     pub(crate) unsafe fn drop_frame(&self, index: usize) {
-        debug!("[drop_frame] (pre-drop) current locals index: {}", *self.current_local_idx.get());
+        debug!(
+            "[drop_frame] (pre-drop) current locals index: {}",
+            *self.current_local_idx.get()
+        );
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
         let (dropped_frame_index, current_index) = self.decrement_frame_index();
@@ -385,29 +397,38 @@ impl Stack {
             "[drop_frame] (pre-drop) {{ frame_index={}, dropped_frame_index={}, current_index={:?} }}",
             index, dropped_frame_index, current_index
         );
-        assert_eq!(index, dropped_frame_index, "Dropped frame index did not match the index we received.");
+        assert_eq!(
+            index, dropped_frame_index,
+            "Dropped frame index did not match the index we received."
+        );
 
         // Get a mutable reference to our frames vec.
         let frames = &mut *self.frames.get();
 
         // Remove the dropped frame, getting the removed `FrameContext`.
-        debug!("[drop_frame] (pre-drop) dropped frame: {{ ptr={:?}, value={:?} }}", index, frames[index]);
+        debug!(
+            "[drop_frame] (pre-drop) dropped frame: {{ ptr={:?}, value={:?} }}",
+            index, frames[index]
+        );
         let dropped_frame = frames.remove(dropped_frame_index);
-        debug!("[drop_frame] (post-drop) dropped frame: {{ ptr={:?}, value={:?} }}", dropped_frame.frame_index, dropped_frame);
-        debug!("[drop_frame] (post-drop) current locals index: {}", *self.current_local_idx.get());
+        debug!(
+            "[drop_frame] (post-drop) dropped frame: {{ ptr={:?}, value={:?} }}",
+            dropped_frame.frame_index, dropped_frame
+        );
+        debug!(
+            "[drop_frame] (post-drop) current locals index: {}",
+            *self.current_local_idx.get()
+        );
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
-        (self.current_local_idx.get())
-            .replace(dropped_frame.lower_bound as i32);
+        (self.current_local_idx.get()).replace(dropped_frame.lower_bound as i32);
     }
 
     /// Returns the index of the current (top) frame in this [Stack].
     #[inline]
     pub(crate) fn get_frame_index(&self) -> usize {
-        unsafe {
-            *self.next_frame_idx.get()
-        }
+        unsafe { *self.next_frame_idx.get() }
     }
 
     /// Increments the current frame index and returns a tuple of (`last_value`, `new_value`),
@@ -448,7 +469,10 @@ impl Stack {
 
         if current_frame_index > 0 {
             *next_frame_index_ptr -= 1;
-            debug!("[decrement_frame_index] (post-decrement) returning ({:?}, {:?})", current_frame_index, *next_frame_index_ptr);
+            debug!(
+                "[decrement_frame_index] (post-decrement) returning ({:?}, {:?})",
+                current_frame_index, *next_frame_index_ptr
+            );
             (current_frame_index, Some(*next_frame_index_ptr))
         } else {
             next_frame_index_ptr.replace(0);
@@ -469,12 +493,17 @@ impl Stack {
             let ptr = &value as *const Value;
 
             if current_idx_usize < backing_vec_len {
-                debug!("[local_push] (pre-set) setting value at index {}", current_idx_usize);
+                debug!(
+                    "[local_push] (pre-set) setting value at index {}",
+                    current_idx_usize
+                );
                 (*self.locals.get())[current_idx_usize] = ptr;
             } else {
-                debug!("[local_push] (pre-push) pushing new value {{ len={}, pre-push index={} }}", 
-                    (*self.locals.get()).len(), 
-                    *current_idx as usize);
+                debug!(
+                    "[local_push] (pre-push) pushing new value {{ len={}, pre-push index={} }}",
+                    (*self.locals.get()).len(),
+                    *current_idx as usize
+                );
 
                 (*self.locals.get()).push(ptr);
             }
@@ -482,9 +511,11 @@ impl Stack {
             // Increment the current local index
             *current_idx += 1;
 
-            debug!("[local_push] (post-push) value pushed {{ len={}, post-push index={} }}", 
-                    (*self.locals.get()).len(), 
-                    *current_idx as usize);
+            debug!(
+                "[local_push] (post-push) value pushed {{ len={}, post-push index={} }}",
+                (*self.locals.get()).len(),
+                *current_idx as usize
+            );
 
             (idx, val_type)
         }
@@ -544,7 +575,6 @@ impl Stack {
 pub struct StackExecContext {}
 
 impl StackExecContext {
-
     #[inline]
     pub fn exec(
         stack: Stack,
@@ -571,8 +601,8 @@ impl StackExecContext {
 #[cfg(test)]
 #[allow(unused_variables)]
 mod test {
-    use crate::runtime::stack::ValType;
     use super::Stack;
+    use crate::runtime::stack::ValType;
     use clarity::vm::Value;
     use log::*;
 
@@ -651,11 +681,11 @@ mod test {
 
             let ptr2 = f1.push(Value::UInt(2));
             assert_eq!(ValType::UInt128, ptr2.val_type);
-            
+
             assert_eq!(2, stack.get_current_local_idx());
             assert_eq!(1, stack.get_next_frame_idx());
 
-            stack.exec(|f2 | {
+            stack.exec(|f2| {
                 assert_eq!(2, stack.get_current_local_idx());
                 assert_eq!(2, stack.get_next_frame_idx());
 
@@ -664,7 +694,7 @@ mod test {
                 let val2 = f2.get(ptr2);
 
                 let ptr3 = f2.push(Value::UInt(3));
-                
+
                 assert!(val1_1.is_some());
                 assert!(val1_2.is_some());
                 assert_eq!(&Value::Int(1), val1_1.unwrap());
@@ -722,22 +752,34 @@ mod test {
             stack.exec(|frame| {
                 let a = unsafe { frame.get_unchecked(a_ptr) };
                 let b = unsafe { frame.get_unchecked(b_ptr) };
-                trace!("[test] current_local_idx: {}", stack.get_current_local_idx());
+                trace!(
+                    "[test] current_local_idx: {}",
+                    stack.get_current_local_idx()
+                );
 
                 let result = match (a, b) {
                     (Some(Value::Int(a)), Some(Value::Int(b))) => Value::Int(a + b),
-                    (Some(Value::UInt(a)), Some(Value::UInt(b))) => Value::UInt(a.checked_add(*b).unwrap()),
+                    (Some(Value::UInt(a)), Some(Value::UInt(b))) => {
+                        Value::UInt(a.checked_add(*b).unwrap())
+                    }
                     _ => todo!("Add not implemented for given types"),
                 };
 
                 // Push an extra dummy value so we can make sure it gets properly dropped
                 frame.push(result.clone());
-                trace!("[test] current_local_idx: {}", stack.get_current_local_idx());
+                trace!(
+                    "[test] current_local_idx: {}",
+                    stack.get_current_local_idx()
+                );
 
                 vec![result]
             });
 
-            trace!("[test] current_local_idx: {}, vec len: {}", stack.get_current_local_idx(), stack.get_locals_vec_len());
+            trace!(
+                "[test] current_local_idx: {}, vec len: {}",
+                stack.get_current_local_idx(),
+                stack.get_locals_vec_len()
+            );
             //assert_eq!(2, stack.local_count());
             assert_eq!(2, stack.get_current_local_idx());
         });

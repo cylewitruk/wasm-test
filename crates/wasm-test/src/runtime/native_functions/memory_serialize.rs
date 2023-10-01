@@ -1,9 +1,12 @@
-use wasmtime::{AsContextMut, Func, Caller, Val};
+use wasmtime::{AsContextMut, Caller, Func, Val};
 
-use crate::{serialization::{
-    deserialize_clarity_seq_to_ptrs, get_type_indicator_from_serialized_value, FuncResultMemory,
-    FuncResultMemoryTrait, RuntimeError, TypeIndicator, HEADER_LEN,
-}, runtime::ClarityWasmContext};
+use crate::{
+    runtime::ClarityWasmContext,
+    serialization::{
+        deserialize_clarity_seq_to_ptrs, get_type_indicator_from_serialized_value,
+        FuncResultMemory, FuncResultMemoryTrait, RuntimeError, TypeIndicator, HEADER_LEN,
+    },
+};
 
 #[inline]
 pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {

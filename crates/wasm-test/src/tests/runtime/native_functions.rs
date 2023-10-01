@@ -1,4 +1,4 @@
-use crate::{tests::runtime::helpers::*, runtime::Stack};
+use crate::{runtime::Stack, tests::runtime::helpers::*};
 use clarity::vm::Value;
 use test_case::test_case;
 use wasmtime::{ExternRef, Val};

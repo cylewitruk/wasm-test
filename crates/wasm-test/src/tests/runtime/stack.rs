@@ -1,5 +1,5 @@
-use crate::runtime::{AsStack, Stack};
 use crate::runtime::{stack::StackFrame, ClarityWasmContext};
+use crate::runtime::{AsStack, Stack};
 use crate::tests::runtime::helpers::*;
 use clarity::vm::Value;
 use wasmtime::{Caller, Func};
@@ -12,7 +12,7 @@ fn test() {
 
     let func = Func::wrap(&mut store, move |caller: Caller<'_, ClarityWasmContext>| {
         let stack = caller.as_stack();
-        
+
         stack.exec(|frame: StackFrame| {
             let ptr1 = frame.push(Value::Int(1));
             let ptr2 = frame.push(Value::UInt(2));

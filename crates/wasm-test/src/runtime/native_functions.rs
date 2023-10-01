@@ -10,14 +10,13 @@ pub use rustref::*;
 pub use rustref_stack::*;
 pub use wasm_native::*;
 
-
 // This module defines all of the Clarity native RUNTIME functions. The matching type definitions
 // must be imported into modules IN THE SAME ORDER as their import order in the module. For example,
 // if Walrus is used to generate the module, the type definitions must be imported in the same
 // order as when imported into the Wasmtime module.
 
-use wasmtime::{AsContextMut, Func};
 use super::ClarityWasmContext;
+use wasmtime::{AsContextMut, Func};
 
 pub use rustref_stack::*;
 
@@ -45,7 +44,10 @@ pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>
         FuncMap::new("add_native", define_add_native(&mut store)),
         FuncMap::new("add_memory", define_add_memory(&mut store)),
         FuncMap::new("add_rustref", define_add_rustref(&mut store)),
-        FuncMap::new("define_add_rustref_stack", define_add_rustref_stack(&mut store)),
+        FuncMap::new(
+            "define_add_rustref_stack",
+            define_add_rustref_stack(&mut store),
+        ),
         // `mul` (multiplication) functions
         FuncMap::new("mul_extref", define_mul_extref(&mut store)),
         FuncMap::new("mul_rustref", define_mul_rustref(&mut store)),
