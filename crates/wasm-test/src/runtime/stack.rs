@@ -284,7 +284,7 @@ impl Stack {
             let (frame, frame_index) = stack.new_frame();
             // Call the provided function.
             let frame_result: Vec<Value> = func(&mut store, &frame);
-            debug!("Frame result count: {}", frame_result.len());
+            //debug!("Frame result count: {}", frame_result.len());
             // Move the output values from the frame to the result buffer.
             stack.fill_result_buffer(frame_result);
             // Drop the frame.
@@ -305,8 +305,8 @@ impl Stack {
             let (frame, frame_index) = self.new_frame();
             // Call the provided function.
             let frame_result: Vec<Value> = func(frame);
-            debug!("Frame result count: {}", frame_result.len());
-            debug!("Frame results: {:?}", &frame_result);
+            //debug!("Frame result count: {}", frame_result.len());
+            //debug!("Frame results: {:?}", &frame_result);
             // Move the output values from the frame to the result buffer.
             self.fill_result_buffer(frame_result);
             // Drop the frame.
@@ -328,7 +328,7 @@ impl Stack {
             let (frame, frame_index) = self.new_frame();
             // Call the provided function.
             let frame_result: Vec<Value> = func(&mut store, &frame);
-            debug!("Frame result count: {}", frame_result.len());
+            //debug!("Frame result count: {}", frame_result.len());
             // Move the output values from the frame to the result buffer.
             self.fill_result_buffer(frame_result);
             // Drop the frame.
@@ -357,15 +357,15 @@ impl Stack {
     #[inline]
     pub(crate) unsafe fn new_frame(&self) -> (StackFrame, usize) {
         // Retrieve the index for a new frame and increment the frame index.
-        debug!(
-            "[new_frame] (pre-increment) next-frame-idx={}",
-            &*self.next_frame_idx.get()
-        );
+        //debug!(
+        //    "[new_frame] (pre-increment) next-frame-idx={}",
+        //    &*self.next_frame_idx.get()
+        //);
         let (index, next_index) = self.increment_frame_index();
-        debug!(
-            "[new_frame] (post-increment) index={}, next_index={}",
-            index, next_index
-        );
+        //debug!(
+        //    "[new_frame] (post-increment) index={}, next_index={}",
+        //    index, next_index
+        //);
 
         // Create a new frame context, which stores a little bit of information
         // about the frame that we'll need later.
@@ -386,17 +386,17 @@ impl Stack {
     /// function returns a [FrameContext] representing the frame at the top of the stack.
     #[inline]
     pub(crate) unsafe fn drop_frame(&self, index: usize) {
-        debug!(
-            "[drop_frame] (pre-drop) current locals index: {}",
-            *self.current_local_idx.get()
-        );
+        //debug!(
+        //    "[drop_frame] (pre-drop) current locals index: {}",
+        //    *self.current_local_idx.get()
+        //);
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
         let (dropped_frame_index, current_index) = self.decrement_frame_index();
-        debug!(
-            "[drop_frame] (pre-drop) {{ frame_index={}, dropped_frame_index={}, current_index={:?} }}",
-            index, dropped_frame_index, current_index
-        );
+        //debug!(
+        //    "[drop_frame] (pre-drop) {{ frame_index={}, dropped_frame_index={}, current_index={:?} }}",
+        //    index, dropped_frame_index, current_index
+        //);
         assert_eq!(
             index, dropped_frame_index,
             "Dropped frame index did not match the index we received."
@@ -406,19 +406,19 @@ impl Stack {
         let frames = &mut *self.frames.get();
 
         // Remove the dropped frame, getting the removed `FrameContext`.
-        debug!(
-            "[drop_frame] (pre-drop) dropped frame: {{ ptr={:?}, value={:?} }}",
-            index, frames[index]
-        );
+        //debug!(
+        //    "[drop_frame] (pre-drop) dropped frame: {{ ptr={:?}, value={:?} }}",
+        //    index, frames[index]
+        //);
         let dropped_frame = frames.remove(dropped_frame_index);
-        debug!(
-            "[drop_frame] (post-drop) dropped frame: {{ ptr={:?}, value={:?} }}",
-            dropped_frame.frame_index, dropped_frame
-        );
-        debug!(
-            "[drop_frame] (post-drop) current locals index: {}",
-            *self.current_local_idx.get()
-        );
+        //debug!(
+        //    "[drop_frame] (post-drop) dropped frame: {{ ptr={:?}, value={:?} }}",
+        //    dropped_frame.frame_index, dropped_frame
+        //);
+        //debug!(
+        //    "[drop_frame] (post-drop) current locals index: {}",
+        //    *self.current_local_idx.get()
+        //);
 
         // Set the Stack's current locals index to the lower bound of the dropped frame.
         // This is the state just before the dropped frame was created.
@@ -458,21 +458,21 @@ impl Stack {
             1
         };
 
-        debug!("[decrement_frame_index] (pre-decrement) {{ current_frame_index={}, next_frame_idx (upper)={}, target_frame_index={} }}",
-            current_frame_index, next_frame_index, target_frame_index);
+        //debug!("[decrement_frame_index] (pre-decrement) {{ current_frame_index={}, next_frame_idx (upper)={}, target_frame_index={} }}",
+        //    current_frame_index, next_frame_index, target_frame_index);
 
         if target_frame_index == 0 {
-            debug!("[decrement_frame_index] target frame is 0, resetting...");
+        //    debug!("[decrement_frame_index] target frame is 0, resetting...");
             *next_frame_index_ptr = 1;
             return (1, None);
         }
 
         if current_frame_index > 0 {
             *next_frame_index_ptr -= 1;
-            debug!(
-                "[decrement_frame_index] (post-decrement) returning ({:?}, {:?})",
-                current_frame_index, *next_frame_index_ptr
-            );
+            //debug!(
+            //    "[decrement_frame_index] (post-decrement) returning ({:?}, {:?})",
+            //    current_frame_index, *next_frame_index_ptr
+            //);
             (current_frame_index, Some(*next_frame_index_ptr))
         } else {
             next_frame_index_ptr.replace(0);
@@ -493,17 +493,17 @@ impl Stack {
             let ptr = &value as *const Value;
 
             if current_idx_usize < backing_vec_len {
-                debug!(
-                    "[local_push] (pre-set) setting value at index {}",
-                    current_idx_usize
-                );
+                //debug!(
+                //    "[local_push] (pre-set) setting value at index {}",
+                //    current_idx_usize
+                //);
                 (*self.locals.get())[current_idx_usize] = ptr;
             } else {
-                debug!(
-                    "[local_push] (pre-push) pushing new value {{ len={}, pre-push index={} }}",
-                    (*self.locals.get()).len(),
-                    *current_idx as usize
-                );
+                //debug!(
+                //    "[local_push] (pre-push) pushing new value {{ len={}, pre-push index={} }}",
+                //    (*self.locals.get()).len(),
+                //    *current_idx as usize
+                //);
 
                 (*self.locals.get()).push(ptr);
             }
@@ -511,11 +511,11 @@ impl Stack {
             // Increment the current local index
             *current_idx += 1;
 
-            debug!(
-                "[local_push] (post-push) value pushed {{ len={}, post-push index={} }}",
-                (*self.locals.get()).len(),
-                *current_idx as usize
-            );
+            //debug!(
+            //    "[local_push] (post-push) value pushed {{ len={}, post-push index={} }}",
+            //    (*self.locals.get()).len(),
+            //    *current_idx as usize
+            //);
 
             (idx, val_type)
         }
@@ -536,18 +536,18 @@ impl Stack {
 
     #[inline]
     pub(crate) unsafe fn local_get(&self, ptr: i32) -> Option<&Value> {
-        debug!("[local_get] retrieving value at ptr {}", ptr);
+        //debug!("[local_get] retrieving value at ptr {}", ptr);
         unsafe {
             let raw_ptr = (*self.locals.get())[ptr as usize];
-            debug!("[local_get] raw pointer: {:?}", raw_ptr);
+        //    debug!("[local_get] raw pointer: {:?}", raw_ptr);
 
             if raw_ptr.is_null() {
-                warn!("[local_get] pointer is null.");
+        //        warn!("[local_get] pointer is null.");
                 None
             } else {
-                debug!("[local_get] pointer is not null, attempting to retrieve value");
+        //        debug!("[local_get] pointer is not null, attempting to retrieve value");
                 let value = &*raw_ptr;
-                debug!("[local_get] got value: {:?}", value);
+        //        debug!("[local_get] got value: {:?}", value);
                 Some(&*raw_ptr)
             }
         }

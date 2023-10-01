@@ -8,7 +8,7 @@ path = "./src/lib.rs"
 
 [features]
 bench = []
-logging = ["dep:simple_logger"]
+logging = ["dep:env_logger"]
 coredump = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -46,7 +46,7 @@ sha2 = "0.10.7"
 chrono = "0.4.30"
 
 [[bench]]
-name = "wasmtime"
+name = "wasmtime_bench"
 harness = false
 required-features = ["bench"]
 

@@ -1,16 +1,17 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use clarity::vm::Value;
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{criterion_group, BatchSize, Criterion, black_box};
 use walrus::FunctionId;
 use wasm_test::{
     get_all_functions,
     runtime::{
-        AsStack, AsStoreExec, ClarityWasmContext, HostPtr, Stack, StackExecContext, StackFrame,
+        AsStoreExec, ClarityWasmContext, Stack,
     },
     serialization::serialize_clarity_value,
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
+use log::*;
 
 criterion_group!(
     fold_add_square_benches,
@@ -36,12 +37,18 @@ fn main() {
 
     #[cfg(feature = "logging")]
     {
-        simple_logger::SimpleLogger::new()
+        env_logger::Builder::from_env(
+            env_logger::Env::default()
+                .default_filter_or("wasm_test,wasmtime_bench"))
+                .is_test(true)
+                .init();
+        /*simple_logger::SimpleLogger::new()
             .with_colors(true)
             .with_level(log::LevelFilter::Trace)
             .init()
-            .unwrap();
+            .unwrap();*/
     }
+    info!("HELLO");
 
     //fold_add_square_benches();
     add_benches();
@@ -291,16 +298,20 @@ pub fn add_rustref(c: &mut Criterion) {
 //#[cfg(any(feature = "bench", rust_analyzer))]
 pub fn add_rustref_stack(c: &mut Criterion) {
     eprintln!("ADD_RUSTREF_STACK");
+    warn!("hello?");
     c.bench_function("add/rustref (stack)/i128", move |b| {
         let stack = Rc::new(Stack::default());
         let (instance, mut store) = load_instance(Rc::clone(&stack));
 
-        let mut ptr1: i32;
-        let mut ptr2: i32;
+        let ptr1: i32;
+        let ptr2: i32;
         {
             let stack = Rc::clone(&stack);
             ptr1 = stack._local_push(Value::Int(1024)).0;
+            trace!("[add_rustref_stack] ptr1: {}", ptr1);
             ptr2 = stack._local_push(Value::Int(2048)).0;
+            trace!("[add_rustref_stack] ptr2: {}", ptr2);
+            debug!("[add_rustref_stack] stack dump after adding locals in bench: {}", &stack);
         }
 
         let instance_fn = instance
@@ -314,6 +325,7 @@ pub fn add_rustref_stack(c: &mut Criterion) {
                 || {},
                 |_| {
                     let store = &mut store.as_context_mut();
+                    black_box(5);
                     instance_fn
                         .call(store, &[Val::I32(ptr1), Val::I32(ptr2)], results)
                         .expect("failed to call fn");
