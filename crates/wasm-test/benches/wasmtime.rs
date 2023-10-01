@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use walrus::FunctionId;
 use wasm_test::{
     get_all_functions, 
-    runtime::{ClarityWasmContext, StackFrame, AsStack, Stack, StackExecContext, AsStoreExec}, 
+    runtime::{ClarityWasmContext, StackFrame, AsStack, Stack, StackExecContext, AsStoreExec, HostPtr}, 
     serialization::serialize_clarity_value
 };
 use wasmtime::{AsContextMut, Config, Engine, Extern, ExternRef, Instance, Module, Store, Val};
@@ -20,19 +20,40 @@ criterion_group! {
     name = add_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
     targets = 
-        add_wat, 
-        add_externref, 
-        add_rustref, 
+        //add_wat, 
+        //add_externref, 
+        //add_rustref, 
         add_rustref_stack, 
-        add_rustref_direct, 
-        add_native, 
-        add_memory,
+        //add_rustref_direct, 
+        //add_native, 
+        //add_memory,
 }
 
-criterion_main!(
+fn main(){
+    coredump::register_panic_handler()
+        .expect("Failed to register panic handler");
+
+    #[cfg(feature = "logging")]
+    {
+        simple_logger::SimpleLogger::new()
+            .with_colors(true)
+            .with_level(log::LevelFilter::Trace)
+            .init()
+            .unwrap();
+    }
+
+    //fold_add_square_benches();
+    add_benches();
+
+    Criterion::default()
+        .configure_from_args()
+        .final_summary();
+  }
+
+/*criterion_main!(
     //fold_add_square_benches, 
     add_benches,
-);
+);*/
 
 /// Helper struct to store mappings between a function name andits module import id and function id.
 #[derive(Debug, Clone)]
@@ -270,13 +291,24 @@ pub fn add_rustref(c: &mut Criterion) {
 /// Add using Rust references.
 //#[cfg(any(feature = "bench", rust_analyzer))]
 pub fn add_rustref_stack(c: &mut Criterion) {
+    eprintln!("ADD_RUSTREF_STACK");
     c.bench_function("add/rustref (stack)/i128", move |b| {
         let stack = Rc::new(Stack::default());
-    let (instance, mut store) = load_instance(Rc::clone(&stack));
+        let (instance, mut store) = load_instance(Rc::clone(&stack));
 
-        let _instance_fn = instance
+        let mut ptr1: i32;
+        let mut ptr2: i32;
+        {
+            let stack = Rc::clone(&stack);
+            ptr1 = stack._local_push(Value::Int(1024)).0;
+            ptr2 = stack._local_push(Value::Int(2048)).0;
+        }
+
+        let instance_fn = instance
             .get_func(store.as_context_mut(), "add_rustref_stack_test")
             .expect("Failed to get fn");
+
+        let results = &mut vec![Val::null()];
 
         store.exec(Rc::clone(&stack), |_frame, store| {
 
@@ -285,7 +317,12 @@ pub fn add_rustref_stack(c: &mut Criterion) {
             }, 
             |_| {
                 let store = &mut store.as_context_mut();
-                _instance_fn.call(store, &[], &mut []);
+                instance_fn
+                    .call(
+                        store, 
+                        &[Val::I32(ptr1), Val::I32(ptr2)], 
+                        results)
+                    .expect("failed to call fn");
             },
             BatchSize::SmallInput
         );
@@ -293,38 +330,6 @@ pub fn add_rustref_stack(c: &mut Criterion) {
             vec![]
         });
     });
-
-    // TODO: Try using iter_batched instead
-
-    /*store.as_stack().exec2(
-        store,
-        |
-            st: &mut Store<ClarityWasmContext>, 
-            outer_frame: &StackFrame
-        | {
-            let a_ptr = outer_frame.push(Value::Int(1024));
-            let b_ptr = outer_frame.push(Value::Int(2048));
-            eprintln!("a_ptr={}", a_ptr);
-            eprintln!("b_ptr={}", b_ptr);
-            //eprintln!("{}", stack);
-
-            // Define our output parameters. Note that we're using `Option`s as stated above.
-            let results = &mut [Val::null()];
-
-            //c.bench_function("add/rustref (stack)/i128", |b| {
-                //b.iter(|| {
-                    instance_fn
-                        .call(
-                            st.as_context_mut(),
-                            &[Val::I32(*a_ptr), Val::I32(*b_ptr)], 
-                            results)
-                        .expect("Failed to call function");
-                //});
-            //});
-
-            vec![]
-        }
-    );*/
 }
 
 /// Add using Rust references.

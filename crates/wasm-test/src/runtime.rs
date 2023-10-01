@@ -4,6 +4,7 @@ pub mod stack;
 pub mod native_functions;
 
 use std::rc::Rc;
+use log::{info, debug, error, warn, trace};
 
 use clarity::vm::Value;
 use wasmtime::{Caller, Store};
@@ -85,7 +86,8 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
             let (frame, frame_index) = stack.new_frame();
             // Call the provided function.
             let frame_result: Vec<Value> = func(frame, self);
-            #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
+            debug!("Frame result count: {}", &frame_result.len());
+            debug!("Frame results: {:?}", &frame_result);
             // Move the output values from the frame to the result buffer.
             stack.fill_result_buffer(frame_result);
             // Drop the frame.
@@ -95,7 +97,6 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
 }
 
 pub trait AsCallerExec<'a> {
-    #[inline]
     fn exec (&'a mut self,
         stack: &'a Stack,
         // Added the for<> below just as a reminder in case we use lifetimes later
@@ -115,7 +116,8 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
             let (frame, frame_index) = stack.new_frame();
             // Call the provided function.
             let frame_result: Vec<Value> = func(frame, self);
-            #[cfg(test)] eprintln!("Frame result count: {}", frame_result.len());
+            debug!("Frame result count: {}", frame_result.len());
+            debug!("Frame results: {:?}", &frame_result);
             // Move the output values from the frame to the result buffer.
             stack.fill_result_buffer(frame_result);
             // Drop the frame.
@@ -127,6 +129,7 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
 #[cfg(test)]
 mod test {
     use std::rc::Rc;
+    use log::*;
 
     use clarity::vm::Value;
     use walrus::{ValType, FunctionBuilder};
@@ -187,21 +190,25 @@ mod test {
             .get_func(&mut store, "add_rustref_stack_test")
             .expect("Failed to get fn");
 
-        store.exec(Rc::clone(&stack_rc), |frame, store| {
-            let ptr1 = frame.push(Value::Int(1024));
-            let ptr2 = frame.push(Value::Int(2048));
+        for x in 0..5 {
+            trace!("\n\n[test] >>>> ITERATION {x}\n");
 
-            //println!("{}", &stack);
-            
-            println!("[test] calling function");
+            store.exec(Rc::clone(&stack_rc), |frame, store| {
+                let ptr1 = frame.push(Value::Int(1024));
+                let ptr2 = frame.push(Value::Int(2048));
+                
+                trace!("[test] calling function");
+                let results = &mut [Val::null()];
 
-            let result = instance_fn.call(store, &[Val::I32(*ptr1), Val::I32(*ptr2)], &mut [Val::null()])
-                .map_err(|e| panic!("[test] error: {:?}", e))
-                .expect("failed to call function.");
+                instance_fn.call(store, &[Val::I32(*ptr1), Val::I32(*ptr2)], results)
+                    .map_err(|e| panic!("[test] error: {:?}", e))
+                    .expect("failed to call function.");
 
-            println!("[test] call result: {:?}", result);
+                trace!("[test] call result: {:?}", results);
 
-            vec![]
-        });
+                vec![]
+            });
+
+        }   
     }
 }

@@ -1,0 +1,5 @@
+#[env]
+#RUST_BACKTRACE = 1
+
+[profile.release.build-override]
+debug = true

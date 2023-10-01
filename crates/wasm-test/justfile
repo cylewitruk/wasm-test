@@ -1,15 +1,15 @@
 test:
-    cargo test
+    cargo test --features "env_logger"
 
 build:
     cargo build
 
 # runs the specified bench
 bench target:
-    cargo bench --bench "{{target}}" --features "bench"
+    RUST_BACKTRACE=1 cargo bench --bench "{{target}}" --features "bench"
 
 install:
     cargo install -f just
 
 add-bench:
-    cargo criterion --bench wasmtime --message-format=json | criterion-table > BENCHMARKS.md
+    RUST_BACKTRACE=1 cargo criterion --bench wasmtime --features "bench" --message-format=json | criterion-table > BENCHMARKS.md
