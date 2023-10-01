@@ -28,7 +28,7 @@ pub fn local_push_checked(c: &mut Criterion) {
                 unsafe { stack.clear_locals() };
             },
             |_| {
-                frame.push(Value::Int(5));
+                frame.push(&Value::Int(5));
             },
             criterion::BatchSize::SmallInput,
         );
@@ -45,7 +45,7 @@ pub fn local_push_unchecked(c: &mut Criterion) {
                 unsafe { stack.clear_locals() };
             },
             |_| {
-                frame.push(Value::Int(5));
+                frame.push(&Value::Int(5));
             },
             criterion::BatchSize::SmallInput,
         );
@@ -62,7 +62,7 @@ pub fn push_1_local_from_frame(c: &mut Criterion) {
             },
             |_| {
                 stack.exec(|frame: StackFrame| {
-                    frame.push(Value::Int(5));
+                    frame.push(&Value::Int(5));
                     vec![]
                 });
             },
@@ -81,8 +81,8 @@ pub fn push_2_locals_from_frame(c: &mut Criterion) {
             },
             |_| {
                 stack.exec(|frame: StackFrame| {
-                    frame.push(Value::Int(1));
-                    frame.push(Value::Int(2));
+                    frame.push(&Value::Int(1));
+                    frame.push(&Value::Int(2));
                     vec![]
                 });
             },
@@ -101,11 +101,11 @@ pub fn push_5_locals_from_frame(c: &mut Criterion) {
             },
             |_| {
                 stack.exec(|frame: StackFrame| {
-                    frame.push(Value::Int(1));
-                    frame.push(Value::Int(2));
-                    frame.push(Value::Int(3));
-                    frame.push(Value::Int(4));
-                    frame.push(Value::Int(5));
+                    frame.push(&Value::Int(1));
+                    frame.push(&Value::Int(2));
+                    frame.push(&Value::Int(3));
+                    frame.push(&Value::Int(4));
+                    frame.push(&Value::Int(5));
                     vec![]
                 });
             },
@@ -125,7 +125,7 @@ pub fn push_5000_locals_from_frame(c: &mut Criterion) {
             |_| {
                 stack.exec(|frame: StackFrame| {
                     for i in 0..5000 {
-                        frame.push(Value::Int(i));
+                        frame.push(&Value::Int(i));
                     }
                     vec![]
                 });
@@ -139,7 +139,7 @@ pub fn get_1_local_from_frame(c: &mut Criterion) {
     c.bench_function("stack/get/one local from frame", move |b| {
         let stack = Stack::new();
         let frame = stack.as_frame();
-        let ptr = frame.push(Value::Int(5));
+        let ptr = frame.push(&Value::Int(5));
 
         b.iter_batched(
             || {},

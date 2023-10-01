@@ -200,8 +200,8 @@ mod test {
             trace!("\n\n[test] >>>> ITERATION {x}\n");
 
             store.exec(Rc::clone(&stack_rc), |frame, store| {
-                let ptr1 = frame.push(Value::Int(1024));
-                let ptr2 = frame.push(Value::Int(2048));
+                let ptr1 = frame.push(&Value::Int(1024));
+                let ptr2 = frame.push(&Value::Int(2048));
 
                 trace!("[test] calling function");
                 let results = &mut [Val::null()];

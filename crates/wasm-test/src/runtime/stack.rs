@@ -1,24 +1,11 @@
 use clarity::vm::Value;
 use core::fmt;
 use log::*;
-use std::{cell::UnsafeCell, ops::Deref, borrow::BorrowMut};
+use std::{cell::UnsafeCell, ops::Deref};
 use wasmtime::Store;
 
 use super::ClarityWasmContext;
 
-/*
-pub struct IndexTransition<T> {
-    previous: T,
-    next: T
-}
-
-impl<T> IndexTransition<T> {
-    #[inline]
-    pub fn new(previous: T, next: T) -> Self {
-        Self { previous, next }
-    }
-}
-*/
 
 /// Value type indicator, indicating the type of Clarity [Value] a given
 /// [HostPtr] is pointing to.
@@ -134,13 +121,13 @@ impl StackFrame<'_> {
     /// [HostPtr] pointer which can be used to retrieve the [Value] at
     /// a later time.
     #[inline]
-    pub fn push(&self, value: Value) -> HostPtr {
+    pub fn push(&self, value: &Value) -> HostPtr {
         let (ptr, val_type) = unsafe { self.0.local_push(value) };
         HostPtr::new(self.0, ptr, val_type)
     }
 
     #[inline]
-    pub fn push_unchecked(&self, value: Value) -> i32 {
+    pub fn push_unchecked(&self, value: &Value) -> i32 {
         unsafe { self.0.local_push(value).0 }
     }
 
@@ -483,16 +470,6 @@ impl Stack {
         }
     }
 
-    #[inline]
-    pub fn get_ptr(&self, value: Value) -> *const Value {
-        &value as *const _
-    }
-
-    #[inline]
-    pub fn get_ptr2(&self, value: &Value) -> *const Value {
-        value as *const _
-    }
-
     /// Gives an owned [Value] to the [Stack] and returns a reference to the value.
     #[inline]
     pub(crate) fn give_owned_value(&self, value: Value) -> &Value {
@@ -505,7 +482,7 @@ impl Stack {
 
     /// Pushes a value to the stack.
     #[inline]
-    pub(crate) unsafe fn local_push(&self, value: Value) -> (i32, ValType) {
+    pub(crate) unsafe fn local_push(&self, value: &Value) -> (i32, ValType) {
         unsafe {
             let backing_vec_len = (*self.locals.get()).len();
             let current_idx = self.current_local_idx.get();
@@ -513,8 +490,8 @@ impl Stack {
 
             let idx = *current_idx;
             let val_type = value.as_val_type();
-            let ptr = &value as *const _;
-            eprintln!("value: {:?}, ptr: {:?}", &value,  ptr);
+            let ptr = value as *const _;
+            //eprintln!("value: {:?}, ptr: {:?}", &value,  ptr);
 
             if current_idx_usize < backing_vec_len {
                 //debug!(
@@ -543,12 +520,6 @@ impl Stack {
 
             (idx, val_type)
         }
-    }
-
-    #[cfg(any(feature = "bench", rust_analyzer))]
-    #[inline]
-    pub fn _local_push(&self, value: Value) -> (i32, ValType) {
-        unsafe { self.local_push(value) }
     }
 
     #[inline]
@@ -596,29 +567,16 @@ impl Stack {
     }
 }
 
-pub struct StackExecContext {}
-
-impl StackExecContext {
+/// Implementations for [Stack] which are intended to be used by benchmarks etc.
+/// We gate these behind the `bench` feature so that they have to be explicitly
+/// enabled as they are not intended for public consumption and will almost
+/// definitely crash and burn if used incorrectly.
+#[cfg(any(feature = "bench", rust_analyzer))]
+impl Stack {
+    
     #[inline]
-    pub fn exec(
-        stack: Stack,
-        mut store: Store<ClarityWasmContext>,
-        // Added the for<> below just as a reminder in case we use lifetimes later
-        mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>,
-    ) -> FrameResult {
-        unsafe {
-            // Create a new virtual frame.
-            let (frame, frame_index) = stack.new_frame();
-            // Call the provided function.
-            let frame_result: Vec<Value> = func(&mut store, &frame);
-            debug!("Frame result count: {}", frame_result.len());
-            // Move the output values from the frame to the result buffer.
-            stack.fill_result_buffer(frame_result);
-            // Drop the frame.
-            stack.drop_frame(frame_index);
-        }
-
-        FrameResult {}
+    pub fn _local_push(&self, value: &Value) -> (i32, ValType) {
+        unsafe { self.local_push(value) }
     }
 }
 
@@ -630,17 +588,14 @@ mod test {
     use clarity::vm::Value;
     use log::*;
 
-    #[cfg(feature = "logging")]
-    use simple_logger::SimpleLogger;
-
     fn init_logging() {
         #[cfg(feature = "logging")]
         {
-            SimpleLogger::new()
-                .with_colors(true)
-                .with_level(LevelFilter::Trace)
-                .init()
-                .unwrap();
+            let _ = env_logger::Builder::from_env(
+                env_logger::Env::default()
+                    .default_filter_or("wasm_test"))
+                    .is_test(true)
+                    .try_init();
         }
     }
 
@@ -665,16 +620,16 @@ mod test {
         let stack = Stack::new();
 
         let _result = stack.exec(|f| {
-            f.push(Value::Int(1));
-            f.push(Value::Int(2));
-            f.push(Value::Int(3));
-            f.push(Value::Int(4));
-            f.push(Value::Int(5));
-            let ptr5 = f.push(Value::UInt(11));
-            f.push(Value::UInt(12));
-            f.push(Value::UInt(13));
-            f.push(Value::Int(14));
-            let ptr8 = f.push(Value::Int(15));
+            f.push(&Value::Int(1));
+            f.push(&Value::Int(2));
+            f.push(&Value::Int(3));
+            f.push(&Value::Int(4));
+            f.push(&Value::Int(5));
+            let ptr5 = f.push(&Value::UInt(11));
+            f.push(&Value::UInt(12));
+            f.push(&Value::UInt(13));
+            f.push(&Value::Int(14));
+            let ptr8 = f.push(&Value::Int(15));
 
             let val5 = f.get(ptr5);
             assert_eq!(true, val5.is_some());
@@ -700,10 +655,10 @@ mod test {
         let stack = Stack::new();
 
         let _result = stack.exec(|f1| {
-            let ptr1 = f1.push(Value::Int(1));
+            let ptr1 = f1.push(&Value::Int(1));
             assert_eq!(ValType::Int128, ptr1.val_type);
 
-            let ptr2 = f1.push(Value::UInt(2));
+            let ptr2 = f1.push(&Value::UInt(2));
             assert_eq!(ValType::UInt128, ptr2.val_type);
 
             assert_eq!(2, stack.get_current_local_idx());
@@ -717,7 +672,7 @@ mod test {
                 let val1_2 = f2.get(ptr1);
                 let val2 = f2.get(ptr2);
 
-                let ptr3 = f2.push(Value::UInt(3));
+                let ptr3 = f2.push(&Value::UInt(3));
 
                 assert!(val1_1.is_some());
                 assert!(val1_2.is_some());
@@ -739,12 +694,12 @@ mod test {
         let stack = Stack::new();
 
         let _result = stack.exec(|f1| {
-            let ptr1 = f1.push(Value::Int(1));
+            let ptr1 = f1.push(&Value::Int(1));
             assert_eq!(1, stack.get_current_local_idx());
             assert_eq!(1, stack.get_next_frame_idx());
 
             stack.exec(|f2| {
-                let ptr2 = f2.push(Value::Int(2));
+                let ptr2 = f2.push(&Value::Int(2));
                 assert_eq!(2, stack.get_current_local_idx());
                 assert_eq!(2, stack.get_next_frame_idx());
 
@@ -763,8 +718,8 @@ mod test {
         init_logging();
         let stack = Stack::new();
 
-        let (a_ptr, _) = unsafe { stack.local_push(Value::Int(1024)) };
-        let (b_ptr, _) = unsafe { stack.local_push(Value::Int(2048)) };
+        let (a_ptr, _) = unsafe { stack.local_push(&Value::Int(1024)) };
+        let (b_ptr, _) = unsafe { stack.local_push(&Value::Int(2048)) };
         assert_eq!(2, stack.local_count());
 
         (1..=5).into_iter().for_each(|i| {
@@ -790,7 +745,7 @@ mod test {
                 };
 
                 // Push an extra dummy value so we can make sure it gets properly dropped
-                frame.push(result.clone());
+                frame.push(&result.clone());
                 trace!(
                     "[test] current_local_idx: {}",
                     stack.get_current_local_idx()

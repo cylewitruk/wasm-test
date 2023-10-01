@@ -14,8 +14,8 @@ fn test() {
         let stack = caller.as_stack();
 
         stack.exec(|frame: StackFrame| {
-            let ptr1 = frame.push(Value::Int(1));
-            let ptr2 = frame.push(Value::UInt(2));
+            let ptr1 = frame.push(&Value::Int(1));
+            let ptr2 = frame.push(&Value::UInt(2));
 
             let val1 = frame.get(ptr1);
             let val2 = frame.get(ptr2);
