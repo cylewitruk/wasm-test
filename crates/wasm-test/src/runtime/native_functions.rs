@@ -38,7 +38,7 @@ impl FuncMap {
 }
 
 #[inline]
-pub fn get_all_functions<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Vec<FuncMap> {
+pub fn get_all_functions(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Vec<FuncMap> {
     vec![
         // `add` functions
         FuncMap::new("add_extref", define_add_extref(&mut store)),

@@ -271,7 +271,7 @@ impl Stack {
     }
 
     #[inline]
-    pub fn frame<'a>(
+    pub fn frame(
         stack: &Stack,
         mut store: Store<ClarityWasmContext>,
         mut func: impl FnMut(&mut Store<ClarityWasmContext>, &StackFrame) -> Vec<Value>

@@ -4,7 +4,7 @@ use log::*;
 use crate::runtime::{ClarityWasmContext, AsStack, StackFrame};
 
 #[inline]
-pub fn define_add_rustref_stack<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_add_rustref_stack(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         #[inline] |caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {

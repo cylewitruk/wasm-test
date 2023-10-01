@@ -4,6 +4,7 @@ pub mod stack;
 pub mod native_functions;
 
 use std::rc::Rc;
+#[allow(unused_imports)]
 use log::{info, debug, error, warn, trace};
 
 use clarity::vm::Value;
@@ -29,7 +30,7 @@ pub struct ClarityWasmContext {
     pub stack: Rc<Stack>,
 }
 
-impl<'a> ClarityWasmContext {
+impl ClarityWasmContext {
     #[inline]
     pub fn new(stack: Rc<Stack>) -> Self {
         Self {

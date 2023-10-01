@@ -6,7 +6,7 @@ use crate::{serialization::{
 }, runtime::ClarityWasmContext};
 
 #[inline]
-pub fn define_add_memory<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_add_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,
@@ -103,7 +103,7 @@ pub fn define_add_memory<'a>(mut store: impl AsContextMut<Data = ClarityWasmCont
 
 /// Defines the `fold_mem` function.
 #[inline]
-pub fn define_fold_memory<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_fold_memory(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,

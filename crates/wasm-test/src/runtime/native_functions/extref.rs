@@ -75,7 +75,7 @@ pub fn define_mul_extref(mut store: impl AsContextMut) -> Func {
 
 /// Defines the `fold_extref` function.
 #[inline]
-pub fn define_fold_extref<'a>(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+pub fn define_fold_extref(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
         &mut store,
         |mut caller: Caller<'_, ClarityWasmContext>,
