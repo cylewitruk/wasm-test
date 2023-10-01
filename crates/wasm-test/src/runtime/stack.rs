@@ -1,7 +1,7 @@
 use clarity::vm::Value;
 use core::fmt;
 use log::*;
-use std::{cell::UnsafeCell, ops::Deref};
+use std::{cell::UnsafeCell, ops::Deref, borrow::BorrowMut};
 use wasmtime::Store;
 
 use super::ClarityWasmContext;
@@ -224,6 +224,7 @@ pub struct Stack {
     locals: UnsafeCell<Vec<*const Value>>,
     frames: UnsafeCell<Vec<FrameContext>>,
     result_buffer: UnsafeCell<Vec<*const Value>>,
+    owned_values: UnsafeCell<Vec<Value>>
 }
 
 impl fmt::Display for Stack {
@@ -253,6 +254,7 @@ impl Default for Stack {
             locals: Default::default(),
             frames: Default::default(),
             result_buffer: Default::default(),
+            owned_values: Default::default(),
         }
     }
 }
@@ -267,6 +269,7 @@ impl Stack {
             locals: UnsafeCell::new(Vec::with_capacity(1000)),
             frames: UnsafeCell::new(Vec::with_capacity(100)),
             result_buffer: UnsafeCell::new(Vec::with_capacity(15)),
+            owned_values: UnsafeCell::new(Vec::with_capacity(100)),
         };
 
         stack.locals.get_mut().fill(std::ptr::null());
@@ -480,6 +483,26 @@ impl Stack {
         }
     }
 
+    #[inline]
+    pub fn get_ptr(&self, value: Value) -> *const Value {
+        &value as *const _
+    }
+
+    #[inline]
+    pub fn get_ptr2(&self, value: &Value) -> *const Value {
+        value as *const _
+    }
+
+    /// Gives an owned [Value] to the [Stack] and returns a reference to the value.
+    #[inline]
+    pub(crate) fn give_owned_value(&self, value: Value) -> &Value {
+        unsafe {
+            (*self.owned_values.get()).push(value);
+            let owned_values_len = (*self.owned_values.get()).len();
+            &(*self.owned_values.get())[owned_values_len - 1]
+        }
+    }
+
     /// Pushes a value to the stack.
     #[inline]
     pub(crate) unsafe fn local_push(&self, value: Value) -> (i32, ValType) {
@@ -490,7 +513,8 @@ impl Stack {
 
             let idx = *current_idx;
             let val_type = value.as_val_type();
-            let ptr = &value as *const Value;
+            let ptr = &value as *const _;
+            eprintln!("value: {:?}, ptr: {:?}", &value,  ptr);
 
             if current_idx_usize < backing_vec_len {
                 //debug!(
@@ -792,5 +816,13 @@ mod test {
 
         assert!(stack1.id != 0 && stack2.id != 0);
         assert_ne!(stack1.id, stack2.id);
+    }
+
+    #[test]
+    fn test_give_owned_value() {
+        let stack = Stack::new();
+
+        let value = Value::Int(1);
+        stack.give_owned_value(value);
     }
 }

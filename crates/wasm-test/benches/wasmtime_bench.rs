@@ -303,16 +303,32 @@ pub fn add_rustref_stack(c: &mut Criterion) {
         let stack = Rc::new(Stack::default());
         let (instance, mut store) = load_instance(Rc::clone(&stack));
 
-        let ptr1: i32;
-        let ptr2: i32;
-        {
-            let stack = Rc::clone(&stack);
-            ptr1 = stack._local_push(Value::Int(1024)).0;
-            trace!("[add_rustref_stack] ptr1: {}", ptr1);
-            ptr2 = stack._local_push(Value::Int(2048)).0;
-            trace!("[add_rustref_stack] ptr2: {}", ptr2);
-            debug!("[add_rustref_stack] stack dump after adding locals in bench: {}", &stack);
-        }
+        let val1 = Value::Int(1);
+        let val2 = Value::Int(2);
+        let val3 = Value::Int(3);
+        let val4 = Value::Int(4);
+        let val5 = Value::Int(5);
+        let val6 = Value::Int(6);
+
+        let p1 = stack.get_ptr(val1);
+        let p2 = stack.get_ptr(val2);
+        let p3 = stack.get_ptr(val3);
+        let p4 = stack.get_ptr2(&val4);
+        let p5 = stack.get_ptr2(&val5);
+        let p6 = stack.get_ptr2(&val6);
+        // This probably doesn't work because the function is taking ownership of the
+        // value and then it's being dropped at the end of the function call, so the
+        // next address is the same each time.
+        eprintln!("p1: {:?}, p2: {:?}, p3: {:?}", p1, p2, p3);
+        // This probably works because the ownership of the value stays in this function
+        // and doesn't get dropped, so the next address must be incremented.
+        eprintln!("p4: {:?}, p5: {:?}, p6: {:?}", p4, p5, p6);
+
+        let ptr1 = stack._local_push(Value::Int(1024)).0;
+        //trace!("[add_rustref_stack] ptr1: {}", ptr1);
+        let ptr2 = stack._local_push(Value::Int(2048)).0;
+        //trace!("[add_rustref_stack] ptr2: {}", ptr2);
+        //debug!("[add_rustref_stack] stack dump after adding locals in bench: {}", &stack);
 
         let instance_fn = instance
             .get_func(store.as_context_mut(), "add_rustref_stack_test")
