@@ -9,6 +9,7 @@
 
 // Public modules
 pub mod compiler;
+#[macro_use]
 pub mod runtime;
 pub mod serialization;
 

@@ -656,7 +656,7 @@ mod test {
         #[cfg(feature = "logging")]
         {
             let _ = env_logger::Builder::from_env(
-                env_logger::Env::default().default_filter_or("wasm_test"),
+                env_logger::Env::default().default_filter_or("wasm_rustref"),
             )
             .is_test(true)
             .try_init();

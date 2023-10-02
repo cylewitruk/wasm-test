@@ -15,6 +15,17 @@ pub use crate::runtime::alloc::WasmAllocator;
 pub use crate::runtime::stack::*;
 pub use native_functions::get_all_functions;
 
+#[macro_export]
+macro_rules! register_host_functions {
+    ( $( $fn:tt ),* ) => {
+        mod host_functions {
+            $(
+                mod $fn;
+            )*
+        }
+    };
+}
+
 /// The state object which is available in all Wasmtime host function
 /// calls. This is where information/structures which may be needed
 /// across multiple executions should be placed.

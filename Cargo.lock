@@ -2094,6 +2094,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "runtime-example"
+version = "0.1.0"
+dependencies = [
+ "clarity-vm",
+ "walrus",
+ "wasm_rustref",
+ "wasmtime",
+]
+
+[[package]]
 name = "rusqlite"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3079,18 +3089,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm_stdlib"
-version = "0.0.0"
-dependencies = [
- "cargo-make",
- "getrandom 0.2.10",
-]
-
-[[package]]
-name = "wasm_test"
+name = "wasm_rustref"
 version = "0.1.0"
 dependencies = [
- "cfg-if",
  "chrono",
  "clarity-vm",
  "coredump",
@@ -3109,6 +3110,14 @@ dependencies = [
  "test-case",
  "walrus",
  "wasmtime",
+]
+
+[[package]]
+name = "wasm_stdlib"
+version = "0.0.0"
+dependencies = [
+ "cargo-make",
+ "getrandom 0.2.10",
 ]
 
 [[package]]

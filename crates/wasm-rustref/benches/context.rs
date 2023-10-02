@@ -5,7 +5,7 @@ use clarity::vm::{
     Value,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
-use wasm_test::runtime::{ClarityWasmContext, Stack};
+use wasm_rustref::runtime::{ClarityWasmContext, Stack};
 use wasmtime::{Config, Engine, Store};
 
 criterion_group!(benches, criterion_benchmark);
