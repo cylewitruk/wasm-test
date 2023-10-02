@@ -5,11 +5,11 @@ build:
     cargo build
 
 # runs the specified bench
-bench target:
-    RUST_BACKTRACE=1 cargo bench --bench "{{target}}" --features "bench"
+bench TARGET:
+    RUST_BACKTRACE=1 cargo bench --bench "{{TARGET}}" --features "bench"
 
 install:
     cargo install -f just
 
-add-bench:
-    RUST_BACKTRACE=1 cargo criterion --bench wasmtime --features "bench" --message-format=json | criterion-table > BENCHMARKS.md
+bench-report TARGET:
+    RUST_BACKTRACE=1 cargo criterion --bench "{{TARGET}}" --features "bench" --message-format=json | criterion-table > BENCHMARKS.md

@@ -295,25 +295,12 @@ pub fn add_rustref(c: &mut Criterion) {
 /// Add using Rust references.
 //#[cfg(any(feature = "bench", rust_analyzer))]
 pub fn add_rustref_stack(c: &mut Criterion) {
-    eprintln!("ADD_RUSTREF_STACK");
-    warn!("hello?");
     c.bench_function("add/rustref (stack)/i128", move |b| {
         let stack = Rc::new(Stack::default());
         let (instance, mut store) = load_instance(Rc::clone(&stack));
 
-        // This probably doesn't work because the function is taking ownership of the
-        // value and then it's being dropped at the end of the function call, so the
-        // next address is the same each time.
-        //eprintln!("p1: {:?}, p2: {:?}, p3: {:?}", p1, p2, p3);
-        // This probably works because the ownership of the value stays in this function
-        // and doesn't get dropped, so the next address must be incremented.
-        //eprintln!("p4: {:?}, p5: {:?}, p6: {:?}", p4, p5, p6);
-
         let ptr1 = stack._local_push(&Value::Int(1024)).0;
-        //trace!("[add_rustref_stack] ptr1: {}", ptr1);
         let ptr2 = stack._local_push(&Value::Int(2048)).0;
-        //trace!("[add_rustref_stack] ptr2: {}", ptr2);
-        //debug!("[add_rustref_stack] stack dump after adding locals in bench: {}", &stack);
 
         let instance_fn = instance
             .get_func(store.as_context_mut(), "add_rustref_stack_test")

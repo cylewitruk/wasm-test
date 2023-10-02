@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+/*use criterion::{criterion_group, criterion_main, Criterion};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     use clarity::vm::Value as ClarityValue;
@@ -215,3 +215,4 @@ pub fn generate_wasm() -> Vec<u8> {
 
     wasm_bytes
 }
+*/

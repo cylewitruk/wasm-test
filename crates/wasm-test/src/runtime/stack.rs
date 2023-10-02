@@ -39,6 +39,7 @@ pub struct HostPtr<'a> {
     stack: &'a Stack,
     inner: i32,
     val_type: ValType,
+    is_owned: bool,
 }
 
 impl<'a> HostPtr<'a> {
@@ -47,11 +48,12 @@ impl<'a> HostPtr<'a> {
     /// Failure to do so will almost certainly result in undefined behavior when trying to
     /// read back the [Value].
     #[inline]
-    pub(crate) fn new(stack: &'a Stack, inner: i32, val_type: ValType) -> Self {
+    pub(crate) fn new(stack: &'a Stack, inner: i32, val_type: ValType, is_owned: bool) -> Self {
         HostPtr {
             stack,
             inner,
             val_type,
+            is_owned,
         }
     }
 
@@ -122,9 +124,13 @@ impl StackFrame<'_> {
     #[inline]
     pub fn push(&self, value: &Value) -> HostPtr {
         let (ptr, val_type) = unsafe { self.0.local_push(value) };
-        HostPtr::new(self.0, ptr, val_type)
+        HostPtr::new(self.0, ptr, val_type, false)
     }
 
+    /// Pushes a new [Value] to the top of the [Stack] and returns an _unsafe_
+    /// pointer (as an [i32]). The value can later be retrieved using the
+    /// [get_unchecked](StackFrame::get_unchecked) function. Note that while
+    /// this function is safe, retrieving a value using an [i32] pointer is **not**.
     #[inline]
     pub fn push_unchecked(&self, value: &Value) -> i32 {
         unsafe { self.0.local_push(value).0 }
@@ -141,7 +147,7 @@ impl StackFrame<'_> {
         unsafe { self.0.local_get(*ptr) }
     }
 
-    /// Gets a value from this [Stack] by [i32] pointer.
+    /// Gets a [Value]] from this [Stack] by [i32] pointer.
     ///
     /// # Safety
     ///
@@ -160,6 +166,22 @@ impl StackFrame<'_> {
         self.0.local_get(ptr)
     }
 
+    /// Attempts to get a [Value] from this [Stack] by [i32] pointer. If an invalid
+    /// pointer is provided then [None] will be returned, otherwise **a** [Value]
+    /// will be returned.
+    /// 
+    /// # Safety
+    /// 
+    /// Please be aware that while this function is not marked as `unsafe`, there
+    /// are _no guarantees_ that you will get the [Value] you want here unless you
+    /// _know for a fact_ that the [Value] has not been dropped or moved.
+    #[inline]
+    pub fn try_get(&self, ptr: i32) -> Option<&Value> {
+        assert_eq!(ptr as u64, self.0.id);
+        unsafe { self.0.local_try_get(ptr) }
+    }
+
+    /// Drops the specified pointer.
     #[inline]
     pub fn drop(&self, ptr: HostPtr) {
         self.0.local_drop(ptr)
@@ -328,15 +350,31 @@ impl Stack {
     }
 
     /// Clears and fills this [Stack]'s result buffer with raw pointers to the values
-    /// contained in the provided [Vec].
+    /// contained in the provided `results` [Vec], consuming it.
     #[inline]
     pub(crate) fn fill_result_buffer(&self, results: Vec<Value>) {
         unsafe {
+            // TODO: Implement re-use of result buffer slots using index, returning a 
+            // slice to the results.
             let buffer = &mut *self.result_buffer.get();
             buffer.clear();
             for result in results {
-                buffer.push(&result as *const _)
+                let result_ref = self.give_owned_value(result);
+                buffer.push(result_ref as *const _)
             }
+        }
+    }
+
+    /// Converts the current result buffer to a [Vec] of &[Value]s.
+    #[inline]
+    pub(crate) fn result_buffer_to_vec(&self) -> Vec<&Value> {
+        unsafe {
+            let buffer = &(*self.result_buffer.get());
+            let mut values = Vec::<&Value>::with_capacity(buffer.len());
+            for val in buffer.iter() {
+                values.push(&**val);
+            }
+            values
         }
     }
 
@@ -521,6 +559,7 @@ impl Stack {
         }
     }
 
+    /// Drops the provided [HostPtr], freeing its value slot for use.
     #[inline]
     pub(crate) fn local_drop(&self, ptr: HostPtr) {
         unsafe {
@@ -528,6 +567,16 @@ impl Stack {
         }
     }
 
+    /// Attempts to retrieve a value given the provided [i32] pointer.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it naively attempts to access the backing [Vec]
+    /// with the provided index, without checking that the index is within the [Vec]'s
+    /// length.
+    ///
+    /// Additionally, if the index _is_ valid but the intended [Value] has been dropped,
+    /// then you may not receive the [Value] you were expecting.
     #[inline]
     pub(crate) unsafe fn local_get(&self, ptr: i32) -> Option<&Value> {
         //debug!("[local_get] retrieving value at ptr {}", ptr);
@@ -547,6 +596,25 @@ impl Stack {
         }
     }
 
+    /// Attempts to retrieve a value given the provided [i32] pointer. If the provided pointer
+    /// is not a valid index within the backing [Vec] this function will return [None].
+    ///
+    /// # Safety
+    ///
+    /// While this function is marked `unsafe`, it is perfectly safe to _call_.
+    /// The reason for the function being `unsafe` is because there are no
+    /// guarantees that the [Value] returned is the expected one.
+    #[inline]
+    pub(crate) unsafe fn local_try_get(&self, ptr: i32) -> Option<&Value> {
+        unsafe {
+            if ptr as usize >= (*self.locals.get()).len() {
+                None
+            } else {
+                self.local_get(ptr)
+            }
+        }
+    }
+
     /// Clears all of the locals in this [Stack].
     ///
     /// # Safety
@@ -555,9 +623,7 @@ impl Stack {
     /// held by frames would result in UB.
     #[inline]
     pub unsafe fn clear_locals(&self) {
-        unsafe {
-            (*self.locals.get()).clear();
-        }
+        (*self.locals.get()).clear();
     }
 
     #[inline]
@@ -771,11 +837,35 @@ mod test {
         assert_ne!(stack1.id, stack2.id);
     }
 
+    /// Assert that giving an owned value to a [Stack] works as expected, and
+    /// that the [Value] is correct.
     #[test]
     fn test_give_owned_value() {
         let stack = Stack::new();
 
         let value = Value::Int(1);
+        let value_clone = value.clone();
         stack.give_owned_value(value);
+
+        unsafe {
+            assert_eq!(1, (*stack.owned_values.get()).len());
+            assert_eq!(value_clone, (*stack.owned_values.get())[0]);
+        }
+    }
+
+    #[test]
+    fn test_result_buffer() {
+        let stack = Stack::new();
+
+        let val1 = Value::Int(1);
+        let val1_clone = val1.clone();
+        let val2 = Value::Int(2);
+        let result_buffer = vec![val1, val2];
+        let result_buffer_expected = result_buffer.clone();
+
+        stack.fill_result_buffer(result_buffer);
+        let results = stack.result_buffer_to_vec();
+
+        assert_eq!(&val1_clone, results[0]);
     }
 }

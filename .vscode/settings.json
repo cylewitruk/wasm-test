@@ -1,4 +1,15 @@
 {
     "rust-analyzer.check.features": "all",
-    "rust-analyzer.runnables.extraArgs": ["--all-features"]
+    "rust-analyzer.runnables.extraArgs": ["--all-features"],
+    "editor.rulers": [
+        {
+            "column": 80,
+            "color": "#353535"
+        },
+        100,
+        {
+            "column": 100,
+            "color": "#492020"
+        },
+    ],
 }

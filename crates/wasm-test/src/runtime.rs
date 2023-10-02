@@ -57,6 +57,7 @@ impl AsStack for Caller<'_, ClarityWasmContext> {
     }
 }
 
+/// Implements [AsStack] for Wasmtime's [Store].
 impl AsStack for Store<ClarityWasmContext> {
     #[inline]
     fn as_stack(&self) -> &Stack {
@@ -64,11 +65,13 @@ impl AsStack for Store<ClarityWasmContext> {
     }
 }
 
+/// Defines functionality enabling a user to execute in a [StackFrame] directly
+/// from a Wasmtime [Store]. This method is meant to be used when the [Stack]
+/// is externally owned.
 pub trait AsStoreExec<'a> {
     fn exec(
         &'a mut self,
         stack: Rc<Stack>,
-        // Added the for<> below just as a reminder in case we use lifetimes later
         func: impl FnOnce(StackFrame, &'a mut Store<ClarityWasmContext>) -> Vec<Value>,
     );
 }
@@ -78,7 +81,6 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
     fn exec(
         &'a mut self,
         stack: Rc<Stack>,
-        // Added the for<> below just as a reminder in case we use lifetimes later
         func: impl FnOnce(StackFrame, &'a mut Store<ClarityWasmContext>) -> Vec<Value>,
     ) {
         unsafe {
@@ -92,6 +94,8 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
             stack.fill_result_buffer(frame_result);
             // Drop the frame.
             stack.drop_frame(frame_index);
+
+            
         }
     }
 }
@@ -100,7 +104,6 @@ pub trait AsCallerExec<'a> {
     fn exec(
         &'a mut self,
         stack: &'a Stack,
-        // Added the for<> below just as a reminder in case we use lifetimes later
         func: impl FnOnce(StackFrame, &'a mut Caller<'a, ClarityWasmContext>) -> Vec<Value>,
     );
 }
@@ -110,7 +113,6 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
     fn exec(
         &'a mut self,
         stack: &'a Stack,
-        // Added the for<> below just as a reminder in case we use lifetimes later
         func: impl FnOnce(StackFrame, &'a mut Caller<'a, ClarityWasmContext>) -> Vec<Value>,
     ) {
         unsafe {
