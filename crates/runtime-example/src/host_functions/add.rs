@@ -1,6 +1,11 @@
 use clarity::vm::Value;
-use wasm_rustref::runtime::{ClarityWasmContext, StackFrame, AsStack};
-use wasmtime::{Func, Caller, AsContextMut};
+use wasm_rustref::runtime::{AsStack, ClarityWasmContext, StackFrame};
+use wasmtime::{AsContextMut, Caller, Func};
+
+host_function!(add => {
+    module = "clarity",
+    params = [hello]
+});
 
 #[allow(dead_code)]
 fn fn_add(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {

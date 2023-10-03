@@ -2098,6 +2098,7 @@ name = "runtime-example"
 version = "0.1.0"
 dependencies = [
  "clarity-vm",
+ "paste",
  "walrus",
  "wasm_rustref",
  "wasmtime",
@@ -3104,6 +3105,7 @@ dependencies = [
  "num",
  "num-derive",
  "num-traits",
+ "paste",
  "rand 0.8.5",
  "rusqlite",
  "sha2 0.10.7",

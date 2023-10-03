@@ -9,21 +9,94 @@ use std::rc::Rc;
 
 use crate::ValuesContext;
 use clarity::vm::Value;
-use wasmtime::{Caller, Store};
+use wasmtime::{AsContextMut, Caller, Func, Store};
 
 pub use crate::runtime::alloc::WasmAllocator;
 pub use crate::runtime::stack::*;
 pub use native_functions::get_all_functions;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WasmType {
+    I32,
+    I64,
+    F32,
+    F64,
+    V128,
+    Externref,
+    Funcref,
+}
+
 #[macro_export]
-macro_rules! register_host_functions {
-    ( $( $fn:tt ),* ) => {
-        mod host_functions {
-            $(
-                mod $fn;
-            )*
+macro_rules! count {
+    () => (0usize);
+    ( $x:tt $($xs:tt)* ) => (1usize + count!($($xs)*));
+}
+
+#[macro_export]
+macro_rules! host_function {
+    ($name:ident => { module = $module:literal, params = [$($args:ident)*] }) => ($crate::paste::paste! {
+        use $crate::paste::paste;
+        use $crate::runtime::{HostFunction, HostFunctionSignature};
+        pub trait [<$name:camel>] : HostFunction {
+            fn signature(&self) -> HostFunctionSignature where Self: Sized {
+                HostFunctionSignature::new($module, stringify!($name), $crate::count!($($args)*), 1)
+            }
+
+            fn wasmtime_func(&self, mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func where Self: 'static {
+                Func::wrap(
+                    &mut store,
+                    Self::exec
+                )
+            }
+
+            fn exec(caller: Caller<'_, ClarityWasmContext>, $($args: i32,)*) -> wasmtime::Result<()>;
+        }
+
+        #[derive(Clone, Copy, Default)]
+        pub struct [<$name:camel Function>] {}
+
+        pub fn [<$name:snake>]() -> [<$name:camel Function>] { [<$name:camel Function>] {} }
+    });
+}
+
+#[macro_export]
+macro_rules! host_functions {
+    ($name:ident => $($func:ident)*) => {
+        pub struct WasmHostFunctionRegistrations<'a> {
+            funcs: std::collections::HashMap<String, &'a dyn HostFunction>,
         }
     };
+}
+
+host_functions!(functions => add);
+
+pub trait HostFunction {
+    fn signature(&self) -> HostFunctionSignature;
+    fn wasmtime_func(&self, store: impl AsContextMut<Data = ClarityWasmContext>) -> Func
+    where
+        Self: Sized;
+}
+
+//pub trait HostFunction1 : HostFunction {
+//    fn function_impl(caller: Caller<'_, ClarityWasmContext>) -> Vec<Val>;
+//}
+
+pub struct HostFunctionSignature {
+    module: String,
+    name: String,
+    param_count: usize,
+    result_count: usize,
+}
+
+impl HostFunctionSignature {
+    pub fn new(module: &str, name: &str, param_count: usize, result_count: usize) -> Self {
+        HostFunctionSignature {
+            module: module.to_string(),
+            name: name.to_string(),
+            param_count,
+            result_count,
+        }
+    }
 }
 
 /// The state object which is available in all Wasmtime host function
@@ -105,8 +178,6 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
             stack.fill_result_buffer(frame_result);
             // Drop the frame.
             stack.drop_frame(frame_index);
-
-            
         }
     }
 }

@@ -11,6 +11,8 @@
 pub mod compiler;
 #[macro_use]
 pub mod runtime;
+#[macro_use]
+pub extern crate paste;
 pub mod serialization;
 
 use clarity::vm::Value;

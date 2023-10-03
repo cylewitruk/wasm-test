@@ -169,9 +169,9 @@ impl StackFrame<'_> {
     /// Attempts to get a [Value] from this [Stack] by [i32] pointer. If an invalid
     /// pointer is provided then [None] will be returned, otherwise **a** [Value]
     /// will be returned.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Please be aware that while this function is not marked as `unsafe`, there
     /// are _no guarantees_ that you will get the [Value] you want here unless you
     /// _know for a fact_ that the [Value] has not been dropped or moved.
@@ -354,7 +354,7 @@ impl Stack {
     #[inline]
     pub(crate) fn fill_result_buffer(&self, results: Vec<Value>) {
         unsafe {
-            // TODO: Implement re-use of result buffer slots using index, returning a 
+            // TODO: Implement re-use of result buffer slots using index, returning a
             // slice to the results.
             let buffer = &mut *self.result_buffer.get();
             buffer.clear();

@@ -10,3 +10,4 @@ wasm_rustref = { path = "../wasm-rustref" }
 walrus = "0.20.1"
 wasmtime = "13.0.0"
 clarity-vm = { version = "2" }
+paste = "1.0.14"
