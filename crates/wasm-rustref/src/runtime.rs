@@ -85,11 +85,16 @@ macro_rules! host_functions {
         pub(crate) mod $module_name {
             $( pub(crate) mod $func; )*
 
-            pub fn wasmtime_imports(mut store: impl wasmtime::AsContextMut<Data = $crate::runtime::ClarityWasmContext>) -> Vec<wasmtime::Extern>  {
+            pub fn get_wasmtime_imports(mut store: impl wasmtime::AsContextMut<Data = $crate::runtime::ClarityWasmContext>) -> Vec<wasmtime::Extern>  {
                 use $crate::runtime::HostFunction;
                 let mut ret: Vec<wasmtime::Extern> = Default::default();
                 $( ret.push(wasmtime::Extern::Func($func :: [<$func:camel>] :: wasmtime_func(&mut store))); )*
                 ret
+            }
+
+            pub fn import_into_walrus_module(module: &mut walrus::Module) {
+                use $crate::runtime::HostFunction;
+                $( $func :: [<$func:camel>] :: walrus_import(module); )*
             }
         }
     });
