@@ -5,7 +5,7 @@ use wasmtime::{Config, Engine, Store};
 #[macro_use]
 extern crate wasm_rustref;
 
-host_functions!(host_functions => add, sub);
+host_functions!(host_functions => add, sub, div, mul);
 
 fn main() {
     let config = Config::default();
