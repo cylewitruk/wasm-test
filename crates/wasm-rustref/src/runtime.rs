@@ -1,3 +1,5 @@
+
+
 pub(crate) mod alloc;
 #[macro_use]
 pub mod stack;
@@ -22,6 +24,11 @@ macro_rules! count {
 }
 
 #[macro_export]
+macro_rules! ignore {
+    ($x:ident) => {};
+}
+
+#[macro_export]
 macro_rules! host_function {
     ($name:ident => { module = $module:literal, params = [$($args:ident),*] }) => ($crate::paste::paste! {
         use $crate::paste::paste;
@@ -41,6 +48,18 @@ macro_rules! host_function {
                     Self::exec
                 )
             }
+
+            fn walrus_import(module: &mut walrus::Module) -> $crate::runtime::WalrusImportResult {
+                use walrus::ValType;
+
+                let sig = Self::signature();
+
+                let function_ty = module.types.add(
+                    &[ $( #[doc = stringify!($args)] ValType::I32, )* ], 
+                    &[ValType::I32]
+                );
+                todo!()
+            }
         }
 
         trait Exec {
@@ -52,27 +71,24 @@ macro_rules! host_function {
 pub trait HostFunction {
     fn signature() -> HostFunctionSignature where Self: Sized;
     fn wasmtime_func(store: impl AsContextMut<Data = ClarityWasmContext>) -> Func where Self: 'static;
+    fn walrus_import(module: &mut walrus::Module) -> WalrusImportResult;
+}
+
+pub struct WalrusImportResult {
+    import_id: walrus::ImportId,
+    function_id: walrus::FunctionId
 }
 
 #[macro_export]
 macro_rules! host_functions {
     ($module_name:ident => $($func:ident),*) => ($crate::paste::paste! {
         pub(crate) mod $module_name {
-            $(
-                pub(crate) mod $func;
-            )*
+            $( pub(crate) mod $func; )*
 
             pub fn wasmtime_imports(mut store: impl wasmtime::AsContextMut<Data = $crate::runtime::ClarityWasmContext>) -> Vec<wasmtime::Extern>  {
                 use $crate::runtime::HostFunction;
-                $(
-                    use $func :: [<$func:camel>];
-                )*
-                let ret: Vec<wasmtime::Extern> = Default::default();
-                $(
-                    let ext_func: wasmtime::Func = $func :: [<$func:camel>] :: wasmtime_func(&mut store);
-                    //ret.push(wasmtime::Extern::Func(ext_func));
-                )*
-
+                let mut ret: Vec<wasmtime::Extern> = Default::default();
+                $( ret.push(wasmtime::Extern::Func($func :: [<$func:camel>] :: wasmtime_func(&mut store))); )*
                 ret
             }
         }
