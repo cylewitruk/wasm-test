@@ -9,6 +9,7 @@ host_function!(fold => {
 });
 
 impl Exec for Fold {
+    #[inline]
     fn exec(caller:Caller<'_,ClarityWasmContext>, func_ptr:i32, list_ptr:i32, init_ptr:i32,) -> wasmtime::Result<()> {
         caller.as_stack().exec(|frame: StackFrame<'_>| {
             let _func = unsafe { frame.get_unchecked(func_ptr) };

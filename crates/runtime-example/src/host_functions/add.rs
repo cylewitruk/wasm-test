@@ -2,13 +2,13 @@ use clarity::vm::Value;
 use wasm_rustref::runtime::{AsStack, ClarityWasmContext, StackFrame};
 use wasmtime::{AsContextMut, Caller, Func};
 
-// Generate boilerplate code for the `add` method.
 host_function!(add => {
     module = "clarity",
     params = [a_ptr, b_ptr]
 });
 
 impl Exec for Add {
+    #[inline]
     fn exec(caller:Caller<'_,ClarityWasmContext>,a_ptr:i32,b_ptr:i32,) -> wasmtime::Result<()> {
         caller.as_stack().exec(|frame: StackFrame<'_>| {
             let a = unsafe { frame.get_unchecked(a_ptr) };
