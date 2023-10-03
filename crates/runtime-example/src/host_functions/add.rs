@@ -2,6 +2,7 @@ use clarity::vm::Value;
 use wasm_rustref::runtime::{AsStack, ClarityWasmContext, StackFrame};
 use wasmtime::{AsContextMut, Caller, Func};
 
+// Generate boilerplate code for the `add` method.
 host_function!(add => {
     module = "clarity",
     params = [a_ptr, b_ptr]

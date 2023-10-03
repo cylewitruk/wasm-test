@@ -58,7 +58,9 @@ macro_rules! host_function {
                     &[ $( #[doc = stringify!($args)] ValType::I32, )* ], 
                     &[ValType::I32]
                 );
-                todo!()
+
+                let (function_id, import_id) = module.add_import_func(&sig.module, &sig.name, function_ty);
+                $crate::runtime::WalrusImportResult { import_id, function_id }
             }
         }
 
@@ -75,8 +77,8 @@ pub trait HostFunction {
 }
 
 pub struct WalrusImportResult {
-    import_id: walrus::ImportId,
-    function_id: walrus::FunctionId
+    pub import_id: walrus::ImportId,
+    pub function_id: walrus::FunctionId
 }
 
 #[macro_export]
@@ -92,19 +94,23 @@ macro_rules! host_functions {
                 ret
             }
 
-            pub fn import_into_walrus_module(module: &mut walrus::Module) {
+            pub fn import_into_walrus_module(module: &mut walrus::Module) -> Vec<$crate::runtime::WalrusImportResult> {
                 use $crate::runtime::HostFunction;
-                $( $func :: [<$func:camel>] :: walrus_import(module); )*
+                let mut import_results: Vec<$crate::runtime::WalrusImportResult> = Default::default();
+                $( 
+                    import_results.push( $func :: [<$func:camel>] :: walrus_import(module) );
+                )*
+                import_results
             }
         }
     });
 }
 
 pub struct HostFunctionSignature {
-    module: String,
-    name: String,
-    param_count: usize,
-    result_count: usize,
+    pub module: String,
+    pub name: String,
+    pub param_count: usize,
+    pub result_count: usize,
 }
 
 impl HostFunctionSignature {
