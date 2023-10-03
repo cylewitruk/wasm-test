@@ -4,8 +4,14 @@ use wasmtime::{AsContextMut, Caller, Func};
 
 host_function!(add => {
     module = "clarity",
-    params = [hello]
+    params = [a_ptr, b_ptr]
 });
+
+impl Exec for Add {
+    fn exec(caller:Caller<'_,ClarityWasmContext>,a_ptr:i32,b_ptr:i32,) -> wasmtime::Result<()> {
+        todo!()
+    }
+}
 
 #[allow(dead_code)]
 fn fn_add(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {

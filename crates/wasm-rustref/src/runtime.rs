@@ -15,17 +15,6 @@ pub use crate::runtime::alloc::WasmAllocator;
 pub use crate::runtime::stack::*;
 pub use native_functions::get_all_functions;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WasmType {
-    I32,
-    I64,
-    F32,
-    F64,
-    V128,
-    Externref,
-    Funcref,
-}
-
 #[macro_export]
 macro_rules! count {
     () => (0usize);
@@ -34,52 +23,61 @@ macro_rules! count {
 
 #[macro_export]
 macro_rules! host_function {
-    ($name:ident => { module = $module:literal, params = [$($args:ident)*] }) => ($crate::paste::paste! {
+    ($name:ident => { module = $module:literal, params = [$($args:ident),*] }) => ($crate::paste::paste! {
         use $crate::paste::paste;
         use $crate::runtime::{HostFunction, HostFunctionSignature};
-        pub trait [<$name:camel>] : HostFunction {
-            fn signature(&self) -> HostFunctionSignature where Self: Sized {
+
+        #[derive(Clone, Copy, Default)]
+        pub struct [<$name:camel>] {}
+
+        impl HostFunction for [<$name:camel>] {
+            fn signature() -> HostFunctionSignature where Self: Sized {
                 HostFunctionSignature::new($module, stringify!($name), $crate::count!($($args)*), 1)
             }
 
-            fn wasmtime_func(&self, mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func where Self: 'static {
+            fn wasmtime_func(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func where Self: 'static {
                 Func::wrap(
                     &mut store,
                     Self::exec
                 )
             }
-
-            fn exec(caller: Caller<'_, ClarityWasmContext>, $($args: i32,)*) -> wasmtime::Result<()>;
         }
 
-        #[derive(Clone, Copy, Default)]
-        pub struct [<$name:camel Function>] {}
-
-        pub fn [<$name:snake>]() -> [<$name:camel Function>] { [<$name:camel Function>] {} }
+        trait Exec {
+            fn exec(caller: Caller<'_, ClarityWasmContext>, $($args: i32,)*) -> wasmtime::Result<()>;
+        }
     });
+}
+
+pub trait HostFunction {
+    fn signature() -> HostFunctionSignature where Self: Sized;
+    fn wasmtime_func(store: impl AsContextMut<Data = ClarityWasmContext>) -> Func where Self: 'static;
 }
 
 #[macro_export]
 macro_rules! host_functions {
-    ($name:ident => $($func:ident)*) => {
-        pub struct WasmHostFunctionRegistrations<'a> {
-            funcs: std::collections::HashMap<String, &'a dyn HostFunction>,
+    ($module_name:ident => $($func:ident),*) => ($crate::paste::paste! {
+        pub(crate) mod $module_name {
+            $(
+                pub(crate) mod $func;
+            )*
+
+            pub fn wasmtime_imports(mut store: impl wasmtime::AsContextMut<Data = $crate::runtime::ClarityWasmContext>) -> Vec<wasmtime::Extern>  {
+                use $crate::runtime::HostFunction;
+                $(
+                    use $func :: [<$func:camel>];
+                )*
+                let ret: Vec<wasmtime::Extern> = Default::default();
+                $(
+                    let ext_func: wasmtime::Func = $func :: [<$func:camel>] :: wasmtime_func(&mut store);
+                    //ret.push(wasmtime::Extern::Func(ext_func));
+                )*
+
+                ret
+            }
         }
-    };
+    });
 }
-
-host_functions!(functions => add);
-
-pub trait HostFunction {
-    fn signature(&self) -> HostFunctionSignature;
-    fn wasmtime_func(&self, store: impl AsContextMut<Data = ClarityWasmContext>) -> Func
-    where
-        Self: Sized;
-}
-
-//pub trait HostFunction1 : HostFunction {
-//    fn function_impl(caller: Caller<'_, ClarityWasmContext>) -> Vec<Val>;
-//}
 
 pub struct HostFunctionSignature {
     module: String,

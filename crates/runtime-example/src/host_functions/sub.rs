@@ -2,6 +2,17 @@ use clarity::vm::Value;
 use wasm_rustref::runtime::{ClarityWasmContext, StackFrame, AsStack};
 use wasmtime::{Func, Caller, AsContextMut};
 
+host_function!(sub => {
+    module = "clarity",
+    params = [a_ptr, b_ptr]
+});
+
+impl Exec for Sub {
+    fn exec(caller:Caller<'_,ClarityWasmContext>,a_ptr:i32,b_ptr:i32,) -> wasmtime::Result<()> {
+        todo!()
+    }
+}
+
 #[allow(dead_code)]
 fn fn_subtract(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
     Func::wrap(
