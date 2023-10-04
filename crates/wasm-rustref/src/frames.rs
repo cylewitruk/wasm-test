@@ -42,7 +42,7 @@ impl StackFrame<'_> {
     /// a later time.
     #[inline]
     pub fn push(&self, value: &Value) -> HostPtr {
-        let (ptr, val_type) = unsafe { self.0.local_push(value) };
+        let (ptr, val_type) = self.0.local_push(value);
         HostPtr::new(self.0, ptr, val_type, false)
     }
 
@@ -52,7 +52,7 @@ impl StackFrame<'_> {
     /// this function is safe, retrieving a value using an [i32] pointer is **not**.
     #[inline]
     pub fn push_unchecked(&self, value: &Value) -> i32 {
-        unsafe { self.0.local_push(value).0 }
+        self.0.local_push(value).0
     }
 
     /// Gets a value from this [Stack] using a previously received [HostPtr].
@@ -100,13 +100,14 @@ impl StackFrame<'_> {
         unsafe { self.0.local_try_get(ptr) }
     }
 
-    /// Drops the specified pointer.
+    /// Drops the specified [HostPtr].
     #[inline]
     pub fn drop(&self, ptr: HostPtr) {
         self.0.local_drop(ptr)
     }
 }
 
+/// Implementation of [fmt::Display] for [StackFrame].
 impl std::fmt::Display for StackFrame<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unsafe {

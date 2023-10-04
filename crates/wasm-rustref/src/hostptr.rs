@@ -12,11 +12,12 @@ pub struct HostPtr<'a> {
     is_owned: bool,
 }
 
+/// Implementation of [HostPtr].
 impl<'a> HostPtr<'a> {
     /// Instantiates a new [HostPtr] instance. Note that it is _critical_ that the
     /// `inner` parameter points to a valid index+reference in the backing [Vec].
     /// Failure to do so will almost certainly result in undefined behavior when trying to
-    /// read back the [Value].
+    /// read back the [clarity::vm::Value].
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn new(stack: &'a Stack, inner: i32, val_type: ValType, is_owned: bool) -> Self {
@@ -35,6 +36,10 @@ impl<'a> HostPtr<'a> {
         self.inner as usize
     }
 
+    /// Gets whether or not this [HostPtr] is owned by the [Stack] or not. Owned
+    /// values are generally only intermediate values (created and dropped during 
+    /// execution) or return values, which move ownership to the caller at the 
+    /// end of execution.
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn is_owned(&self) -> bool {
@@ -53,6 +58,7 @@ impl Deref for HostPtr<'_> {
     }
 }
 
+/// Implementation of [fmt::Display] for [HostPtr].
 impl fmt::Display for HostPtr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
