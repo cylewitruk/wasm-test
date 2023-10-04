@@ -6,7 +6,7 @@ use clarity::vm::{
     Value,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
-use wasm_rustref::serialization::*;
+use wasm_playground::serialization::*;
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);

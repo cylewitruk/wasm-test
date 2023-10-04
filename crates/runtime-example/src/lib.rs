@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate wasm_rustref;
 
-host_functions!(host_functions => 
+host_functions!(host_functions =>
     // Arithmetic operations
     add, sub, div, mul,
     // Other
@@ -11,7 +11,7 @@ host_functions!(host_functions =>
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
-    use wasm_rustref::runtime::{ClarityWasmContext, Stack};
+    use wasm_rustref::{ClarityWasmContext, Stack};
     use wasmtime::{Config, Engine, Store};
 
     #[test]
@@ -32,7 +32,7 @@ mod tests {
 
         // Create a new, default module.
         let mut module = Module::default();
-        
+
         // Attempt to import our function definitions into the module.
         super::host_functions::import_into_walrus_module(&mut module);
 

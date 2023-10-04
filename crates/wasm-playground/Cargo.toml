@@ -1,0 +1,64 @@
+[package]
+name = "wasm_playground"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "./src/lib.rs"
+
+[features]
+bench = []
+logging = ["dep:env_logger"]
+coredump = []
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+walrus = "0.20.1"
+wasmtime = "13.0.0"
+clarity-vm = { version = "2" }
+lazy_static = "1.4.0"
+#wasmer =  { version = "4.2.0", features = ["wasmer-compiler-llvm"] }
+#wasmer-compiler-llvm = "4.2.0"
+mimalloc = { version = "*", default-features = false }
+#bv = "0.11.1"
+num = "0.4.1"
+num-derive = "0.4.0"
+num-traits = "0.2.16"
+fxhash = "0.2.1"
+chrono = "0.4.30"
+#parking_lot = "0.12.1"
+paste = "1.0.14"
+#seq-macro = "0.3.5"
+rand = "0.8.5"
+#cfg-if = "1.0.0"
+log = { version = "0.4.20", features = ["max_level_trace", "release_max_level_warn"] }
+env_logger = { version = "0.10.0", optional = true }
+coredump = "0.1.2"
+
+[dev-dependencies]
+criterion = "0.5.1"
+rusqlite = "0.27.0"
+test-case = "3.1.0"
+sha2 = "0.10.7"
+
+[[bench]]
+name = "wasmtime_bench"
+harness = false
+required-features = ["bench"]
+
+#[[bench]]
+#name = "wasmer"
+#harness = false
+
+[[bench]]
+name = "serialization"
+harness = false
+
+[[bench]]
+name = "context"
+harness = false
+
+[[bench]]
+name = "stack"
+harness = false

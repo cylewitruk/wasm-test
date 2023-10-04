@@ -1,5 +1,3 @@
-
-
 pub(crate) mod alloc;
 #[macro_use]
 pub mod stack;
@@ -55,7 +53,7 @@ macro_rules! host_function {
                 let sig = Self::signature();
 
                 let function_ty = module.types.add(
-                    &[ $( #[doc = stringify!($args)] ValType::I32, )* ], 
+                    &[ $( #[doc = stringify!($args)] ValType::I32, )* ],
                     &[ValType::I32]
                 );
 
@@ -71,14 +69,18 @@ macro_rules! host_function {
 }
 
 pub trait HostFunction {
-    fn signature() -> HostFunctionSignature where Self: Sized;
-    fn wasmtime_func(store: impl AsContextMut<Data = ClarityWasmContext>) -> Func where Self: 'static;
+    fn signature() -> HostFunctionSignature
+    where
+        Self: Sized;
+    fn wasmtime_func(store: impl AsContextMut<Data = ClarityWasmContext>) -> Func
+    where
+        Self: 'static;
     fn walrus_import(module: &mut walrus::Module) -> WalrusImportResult;
 }
 
 pub struct WalrusImportResult {
     pub import_id: walrus::ImportId,
-    pub function_id: walrus::FunctionId
+    pub function_id: walrus::FunctionId,
 }
 
 #[macro_export]
@@ -97,7 +99,7 @@ macro_rules! host_functions {
             pub fn import_into_walrus_module(module: &mut walrus::Module) -> Vec<$crate::runtime::WalrusImportResult> {
                 use $crate::runtime::HostFunction;
                 let mut import_results: Vec<$crate::runtime::WalrusImportResult> = Default::default();
-                $( 
+                $(
                     import_results.push( $func :: [<$func:camel>] :: walrus_import(module) );
                 )*
                 import_results

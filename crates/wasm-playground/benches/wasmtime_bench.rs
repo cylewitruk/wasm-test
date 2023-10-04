@@ -4,7 +4,7 @@ use clarity::vm::Value;
 use criterion::{black_box, criterion_group, BatchSize, Criterion};
 use log::*;
 use walrus::FunctionId;
-use wasm_rustref::{
+use wasm_playground::{
     get_all_functions,
     runtime::{AsStoreExec, ClarityWasmContext, Stack},
     serialization::serialize_clarity_value,
@@ -334,7 +334,7 @@ pub fn add_rustref_direct(c: &mut Criterion) {
     let a_ptr = store.data_mut().values.push(Value::Int(1));
     let b_ptr = store.data_mut().values.push(Value::Int(2));
 
-    let add_fn = wasm_rustref::runtime::native_functions::define_add_rustref(&mut store);
+    let add_fn = wasm_playground::runtime::native_functions::define_add_rustref(&mut store);
     let params = &[Val::I32(a_ptr), Val::I32(b_ptr)];
 
     let mut results = [Val::null()];

@@ -1,170 +1,272 @@
-#![allow(dead_code, unused_variables)]
+mod macros;
+mod stack;
 
-//use mimalloc::MiMalloc;
-
-//#[global_allocator]
-//static GLOBAL: MiMalloc = MiMalloc;
-
-// Private modules
-
-// Public modules
-pub mod compiler;
 #[macro_use]
-pub mod runtime;
+pub extern crate log;
+#[allow(unused_imports)]
 #[macro_use]
 pub extern crate paste;
-pub extern crate wasmtime;
-pub mod serialization;
 
 use clarity::vm::Value;
-// Public exports
-pub use runtime::get_all_functions;
+pub use stack::{AsFrame, AsValType, Stack, StackFrame};
+use std::rc::Rc;
+use wasmtime::{AsContextMut, Caller, Func, Store};
 
-// Test-related
-#[cfg(test)]
-mod tests;
-/*
-#[derive(Debug, Clone)]
-pub struct ClarityWasmContext {
-    pub alloc: WasmAllocator,
-    owned_values: FxHashMap<i32, Value>,
-    owned_counter: i32
+pub trait HostFunction {
+    fn signature() -> HostFunctionSignature
+    where
+        Self: Sized;
+    fn wasmtime_func(store: impl AsContextMut<Data = ClarityWasmContext>) -> Func
+    where
+        Self: 'static;
+    fn walrus_import(module: &mut walrus::Module) -> WalrusImportResult;
 }
 
-impl Default for ClarityWasmContext {
-    fn default() -> Self {
-        Self {
-            alloc: WasmAllocator::new(),
-            owned_values: FxHashMap::<i32, Value>::default(),
-            owned_counter: i32::MIN
+pub struct WalrusImportResult {
+    pub import_id: walrus::ImportId,
+    pub function_id: walrus::FunctionId,
+}
+
+pub struct HostFunctionSignature {
+    pub module: String,
+    pub name: String,
+    pub param_count: usize,
+    pub result_count: usize,
+}
+
+impl HostFunctionSignature {
+    pub fn new(module: &str, name: &str, param_count: usize, result_count: usize) -> Self {
+        HostFunctionSignature {
+            module: module.to_string(),
+            name: name.to_string(),
+            param_count,
+            result_count,
         }
     }
+}
+
+/// The state object which is available in all Wasmtime host function
+/// calls. This is where information/structures which may be needed
+/// across multiple executions should be placed.
+///
+/// Note: To receive a [ClarityWasmContext] in a host function you must
+/// use one of the `wrap` variants which accepts a Wasmtime [Caller] as
+/// the first argument. Once you have a caller, you get an instance to
+/// the [ClarityWasmContext] by using `caller.data()` or `caller.data_mut()`.
+#[derive(Debug)]
+pub struct ClarityWasmContext {
+    pub stack: Rc<Stack>,
 }
 
 impl ClarityWasmContext {
-    /// Creates a new instance of ClarityWasmContext, the data context which
-    /// is passed around to host functions.
-    pub fn new() -> Self {
-        ClarityWasmContext::default()
+    #[inline]
+    pub fn new(stack: Rc<Stack>) -> Self {
+        Self { stack }
     }
+}
 
-    pub fn push_value(&mut self, value: Value) -> i32 {
-        let idx = self.owned_counter;
-        self.owned_counter += 1;
-        self.owned_values.insert(idx, value);
-        idx
+/// A trait which allows a consumer to receive an instance of a [Stack] from
+/// an implementing structure.
+pub trait AsStack {
+    fn as_stack(&self) -> &Stack;
+}
+
+/// Implements [AsStack] for Wasmtime's [Caller] so that consumers of
+/// `wrap` functions can easily receive an instance of this [ClarityWasmContext]'s
+/// [Stack].
+impl AsStack for Caller<'_, ClarityWasmContext> {
+    #[inline]
+    fn as_stack(&self) -> &Stack {
+        &self.data().stack
     }
+}
 
-    pub fn get_value(&self, ptr: i32) -> Value {
-        self.owned_values.get(&ptr).unwrap().to_owned()
+/// Implements [AsStack] for Wasmtime's [Store].
+impl AsStack for Store<ClarityWasmContext> {
+    #[inline]
+    fn as_stack(&self) -> &Stack {
+        &self.data().stack
     }
+}
 
-    pub fn set_value(&mut self, ptr: i32, value: Value) {
-        self.owned_values.insert(ptr, value);
+/// Defines functionality enabling a user to execute in a [StackFrame] directly
+/// from a Wasmtime [Store]. This method is meant to be used when the [Stack]
+/// is externally owned.
+pub trait AsStoreExec<'a> {
+    fn exec(
+        &'a mut self,
+        stack: Rc<Stack>,
+        func: impl FnOnce(StackFrame, &'a mut Store<ClarityWasmContext>) -> Vec<Value>,
+    );
+}
+
+impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
+    #[inline]
+    fn exec(
+        &'a mut self,
+        stack: Rc<Stack>,
+        func: impl FnOnce(StackFrame, &'a mut Store<ClarityWasmContext>) -> Vec<Value>,
+    ) {
+        unsafe {
+            // Create a new virtual frame.
+            let (frame, frame_index) = stack.new_frame();
+            // Call the provided function.
+            let frame_result: Vec<Value> = func(frame, self);
+            debug!("Frame result count: {}", &frame_result.len());
+            debug!("Frame results: {:?}", &frame_result);
+            // Move the output values from the frame to the result buffer.
+            stack.fill_result_buffer(frame_result);
+            // Drop the frame.
+            stack.drop_frame(frame_index);
+        }
     }
+}
 
-    pub fn copy_value_into(&mut self, from_ptr: i32, to_ptr: i32) {
-        self.owned_values.insert(
-            to_ptr,
-            self.owned_values.get(&from_ptr).unwrap().clone()
+pub trait AsCallerExec<'a> {
+    fn exec(
+        &'a mut self,
+        stack: &'a Stack,
+        func: impl FnOnce(StackFrame, &'a mut Caller<'a, ClarityWasmContext>) -> Vec<Value>,
+    );
+}
+
+impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
+    #[inline]
+    fn exec(
+        &'a mut self,
+        stack: &'a Stack,
+        func: impl FnOnce(StackFrame, &'a mut Caller<'a, ClarityWasmContext>) -> Vec<Value>,
+    ) {
+        unsafe {
+            // Create a new virtual frame.
+            let (frame, frame_index) = stack.new_frame();
+            // Call the provided function.
+            let frame_result: Vec<Value> = func(frame, self);
+            debug!("Frame result count: {}", frame_result.len());
+            debug!("Frame results: {:?}", &frame_result);
+            // Move the output values from the frame to the result buffer.
+            stack.fill_result_buffer(frame_result);
+            // Drop the frame.
+            stack.drop_frame(frame_index);
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use log::*;
+    use std::rc::Rc;
+
+    use crate::{AsStack, StackFrame};
+
+    use super::{AsStoreExec, ClarityWasmContext, Stack};
+    use clarity::vm::Value;
+    use walrus::{FunctionBuilder, ValType};
+    use wasmtime::{
+        AsContextMut, Caller, Config, Engine, Extern, Func, Instance, Module, Store, Val,
+    };
+
+    #[test]
+    fn test_as_store_exec() {
+        let stack = Stack::default();
+        let stack_rc = Rc::new(stack);
+        let config = Config::default();
+        let engine = Engine::new(&config).unwrap();
+        let data = ClarityWasmContext::new(Rc::clone(&stack_rc));
+        let mut store = Store::new(&engine, data);
+
+        // Convert the (name, func) pairs to a vec of `Export`s (needed for the Instance).
+        let imports = vec![Extern::Func(define_add_rustref_stack(&mut store))];
+
+        // Construct a new Walrus module.
+        let walrus_config = walrus::ModuleConfig::new();
+        let mut walrus_module = walrus::Module::with_config(walrus_config);
+
+        // Import the API definition for `add_rustref_stack`.
+        let add_rustref_stack_ty = walrus_module
+            .types
+            .add(&[ValType::I32, ValType::I32], &[ValType::I32]);
+
+        let (function_id, _) =
+            walrus_module.add_import_func("clarity", "add_rustref_stack", add_rustref_stack_ty);
+
+        // Define the Wasm test function.
+        let mut add_rustref_stack_test_fn = FunctionBuilder::new(
+            &mut walrus_module.types,
+            &[ValType::I32, ValType::I32], // list + init
+            &[ValType::I32],
         );
-    }
 
-    pub fn new_ptr(&mut self) -> i32 {
-        let idx = self.owned_counter;
-        self.owned_counter += 1;
-        idx
-    }
+        let a = walrus_module.locals.add(ValType::I32);
+        let b = walrus_module.locals.add(ValType::I32);
 
-    pub fn drop_ptr(&mut self, ptr: i32) {
-        self.owned_values.remove(&ptr);
-    }
+        add_rustref_stack_test_fn
+            .func_body()
+            .local_get(a)
+            .local_get(b)
+            .call(function_id);
 
-    pub fn value_count(&self) -> usize {
-        self.owned_values.len()
-    }
+        let add_rustref_test_id =
+            add_rustref_stack_test_fn.finish(vec![a, b], &mut walrus_module.funcs);
+        walrus_module
+            .exports
+            .add("add_rustref_stack_test", add_rustref_test_id);
 
-    pub fn clear_values(&mut self) {
-        self.owned_values.clear();
-    }
-}*/
+        // Compile the module.
+        let wasm_bytes = walrus_module.emit_wasm();
+        let module = Module::new(&engine, &wasm_bytes).expect("Failed to construct new module");
+        let instance = Instance::new(&mut store, &module, &imports)
+            .expect("Couldn't create new module instance");
 
-#[derive(Debug, Clone)]
-pub struct ValuesContext {
-    owned_values: Vec<Option<Value>>,
-    tombstones: Vec<i32>,
-}
+        let instance_fn = instance
+            .get_func(&mut store, "add_rustref_stack_test")
+            .expect("Failed to get fn");
 
-impl Default for ValuesContext {
-    fn default() -> Self {
-        Self {
-            owned_values: Vec::<Option<Value>>::with_capacity(1000),
-            tombstones: Vec::<i32>::with_capacity(1000),
-        }
-    }
-}
+        for x in 0..5 {
+            trace!("\n\n[test] >>>> ITERATION {x}\n");
 
-impl ValuesContext {
-    pub fn push(&mut self, value: Value) -> i32 {
-        if let Some(idx) = self.tombstones.pop() {
-            //eprintln!("[context] Pushing using tombstoned idx {}. Tombstones left: {}", idx, self.tombstones.len());
-            self.owned_values[idx as usize] = Some(value);
-            idx
-        } else {
-            let idx = self.owned_values.len();
-            //eprintln!("[context] Pushing new idx: {}", idx);
-            self.owned_values.push(Some(value));
-            idx as i32
-        }
-    }
+            store.exec(Rc::clone(&stack_rc), |frame, store| {
+                let ptr1 = frame.push(&Value::Int(1024));
+                let ptr2 = frame.push(&Value::Int(2048));
 
-    pub fn take(&mut self, ptr: i32) -> Option<Value> {
-        let value = self.owned_values[ptr as usize].take();
-        self.tombstones.push(ptr);
-        value
-    }
+                trace!("[test] calling function");
+                let results = &mut [Val::null()];
 
-    pub fn borrow(&self, ptr: i32) -> Option<&Value> {
-        self.owned_values[ptr as usize].as_ref()
-    }
+                instance_fn
+                    .call(store, &[Val::I32(*ptr1), Val::I32(*ptr2)], results)
+                    .map_err(|e| panic!("[test] error: {:?}", e))
+                    .expect("failed to call function.");
 
-    pub fn set(&mut self, ptr: i32, value: Value) -> &mut Self {
-        //eprintln!("[context] Setting idx {} to {:?}", ptr, value);
-        self.owned_values[ptr as usize] = Some(value);
-        self
-    }
+                trace!("[test] call result: {:?}", results);
 
-    pub fn copy_into(&mut self, from_ptr: i32, to_ptr: i32) -> &mut Self {
-        self.owned_values[to_ptr as usize] = self.owned_values[from_ptr as usize].clone();
-        self
-    }
-
-    pub fn new_ptr(&mut self) -> i32 {
-        if let Some(idx) = self.tombstones.pop() {
-            //eprintln!("[context] New ptr using tombstoned idx {}. Tombstones left: {}", idx, self.tombstones.len());
-            idx
-        } else {
-            let idx = self.owned_values.len();
-            //eprintln!("[context] New ptr at new idx: {}", idx);
-            self.owned_values.push(None);
-            idx as i32
+                vec![]
+            });
         }
     }
 
-    pub fn drop(&mut self, ptr: i32) -> &mut Self {
-        self.tombstones.push(ptr);
-        self.owned_values[ptr as usize] = None;
-        //eprintln!("[context] Dropped idx {}. Tombstones left: {}", ptr, self.tombstones.len());
-        self
-    }
+    fn define_add_rustref_stack(mut store: impl AsContextMut<Data = ClarityWasmContext>) -> Func {
+        Func::wrap(
+            &mut store,
+            #[inline]
+            |caller: Caller<'_, ClarityWasmContext>, a_ptr: i32, b_ptr: i32| -> i32 {
+                caller.as_stack().exec(|frame: StackFrame<'_>| {
+                    let a = unsafe { frame.get_unchecked(a_ptr) };
+                    let b = unsafe { frame.get_unchecked(b_ptr) };
 
-    pub fn count(&self) -> usize {
-        self.owned_values.len()
-    }
+                    let result = match (a, b) {
+                        (Some(Value::Int(a)), Some(Value::Int(b))) => {
+                            Value::Int(a.checked_add(*b).unwrap())
+                        }
+                        (Some(Value::UInt(a)), Some(Value::UInt(b))) => {
+                            Value::UInt(a.checked_add(*b).unwrap())
+                        }
+                        _ => todo!("Add not implemented for given types"),
+                    };
 
-    pub fn clear(&mut self) -> &mut Self {
-        self.owned_values.clear();
-        self.tombstones.clear();
-        self
+                    vec![result]
+                });
+                5
+            },
+        )
     }
 }

@@ -1,7 +1,7 @@
 use clarity::vm::Value;
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::time::Duration;
-use wasm_rustref::runtime::stack::*;
+use wasm_playground::runtime::stack::*;
 
 criterion_group! {
     name = stack_benches;

@@ -1,6 +1,5 @@
 use clarity::vm::Value;
-use wasm_rustref::runtime::{ClarityWasmContext, StackFrame, AsStack};
-use wasmtime::{Func, Caller, AsContextMut};
+use wasm_rustref::{ClarityWasmContext, StackFrame, AsStack};
 
 host_function!(div => {
     module = "clarity",
@@ -9,7 +8,7 @@ host_function!(div => {
 
 impl Exec for Div {
     #[inline]
-    fn exec(caller:Caller<'_,ClarityWasmContext>,a_ptr:i32,b_ptr:i32,) -> wasmtime::Result<()> {
+    fn exec(caller:wasmtime::Caller<'_,ClarityWasmContext>,a_ptr:i32,b_ptr:i32,) -> wasmtime::Result<()> {
         caller.as_stack().exec(|frame: StackFrame<'_>| {
             let a = unsafe { frame.get_unchecked(a_ptr) };
             let b = unsafe { frame.get_unchecked(b_ptr) };

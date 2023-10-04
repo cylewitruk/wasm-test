@@ -1,3 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/wasm-rustref", "crates/wasm-stdlib", "crates/runtime-example"]
+members = [
+    "crates/wasm-rustref", 
+    #"crates/wasm-stdlib", 
+    "crates/runtime-example",
+    "crates/wasm-playground"
+]
