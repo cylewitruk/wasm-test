@@ -1,230 +1,9 @@
 use clarity::vm::Value;
 use core::fmt;
-use log::*;
-use std::{cell::UnsafeCell, ops::Deref};
+use std::cell::UnsafeCell;
 use wasmtime::Store;
 
-use super::ClarityWasmContext;
-
-/// Value type indicator, indicating the type of Clarity [Value] a given
-/// [HostPtr] is pointing to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum ValType {
-    Int128,
-    UInt128,
-}
-
-/// A simple trait to map a [Value] to a [ValType] with clean semantics.
-pub trait AsValType {
-    fn as_val_type(&self) -> ValType;
-}
-
-/// Implement [AsValType] for Clarity's [Value].
-impl AsValType for Value {
-    #[inline]
-    fn as_val_type(&self) -> ValType {
-        match self {
-            Value::Int(_) => ValType::Int128,
-            Value::UInt(_) => ValType::UInt128,
-            _ => todo!(),
-        }
-    }
-}
-
-/// The external pointer type exposed by [StackFrame] which can be
-/// used to safely work with data behind the pointers.
-#[derive(Debug, Clone, Copy)]
-pub struct HostPtr<'a> {
-    stack: &'a Stack,
-    inner: i32,
-    val_type: ValType,
-    is_owned: bool,
-}
-
-impl<'a> HostPtr<'a> {
-    /// Instantiates a new [HostPtr] instance. Note that it is _critical_ that the
-    /// `inner` parameter points to a valid index+reference in the backing [Vec].
-    /// Failure to do so will almost certainly result in undefined behavior when trying to
-    /// read back the [Value].
-    #[inline]
-    pub(crate) fn new(stack: &'a Stack, inner: i32, val_type: ValType, is_owned: bool) -> Self {
-        HostPtr {
-            stack,
-            inner,
-            val_type,
-            is_owned,
-        }
-    }
-
-    /// Retrieve this [HostPtr] as a [usize].
-    #[inline]
-    #[allow(dead_code)]
-    pub(crate) fn as_usize(&self) -> usize {
-        self.inner as usize
-    }
-}
-
-/// i32 is probably the most commen cast, so we implement implicit deref from
-/// [HostPtr] to [i32].
-impl Deref for HostPtr<'_> {
-    type Target = i32;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl fmt::Display for HostPtr<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{{ stack id: {}, ptr: {}, type: {:?} }}",
-            self.stack.id, self.inner, self.val_type
-        )
-    }
-}
-
-pub struct FrameResult {}
-
-/// A structure representing a virtual "Stack Frame". Not to be confused with
-/// [StackFrame], which provides the public API for a [Stack]/[StackFrame]. This
-/// structure maintains state regarding the frame in question.
-#[derive(Debug, Clone)]
-pub struct FrameContext {
-    pub frame_index: usize,
-    pub parent_frame_index: Option<usize>,
-    pub lower_bound: usize,
-}
-
-/// Implementation of [FrameContext].
-impl FrameContext {
-    /// Instantiates a new [FrameContext] instance.
-    #[inline]
-    pub fn new(frame_index: usize, parent_frame_index: Option<usize>, lower_bound: usize) -> Self {
-        Self {
-            frame_index,
-            parent_frame_index,
-            lower_bound,
-        }
-    }
-}
-
-/// A helper class which provides the "public" API towards consumers of
-/// [Stack]'s `exec` API, as a number of [Stack] methods are unsafe and
-/// can result in UB if used incorrectly.
-#[derive(Debug, Clone)]
-pub struct StackFrame<'a>(&'a Stack);
-
-/// Implementation of the public API for a [StackFrame].
-impl StackFrame<'_> {
-    /// Pushes a new [Value] to the top of the [Stack] and returns a safe
-    /// [HostPtr] pointer which can be used to retrieve the [Value] at
-    /// a later time.
-    #[inline]
-    pub fn push(&self, value: &Value) -> HostPtr {
-        let (ptr, val_type) = unsafe { self.0.local_push(value) };
-        HostPtr::new(self.0, ptr, val_type, false)
-    }
-
-    /// Pushes a new [Value] to the top of the [Stack] and returns an _unsafe_
-    /// pointer (as an [i32]). The value can later be retrieved using the
-    /// [get_unchecked](StackFrame::get_unchecked) function. Note that while
-    /// this function is safe, retrieving a value using an [i32] pointer is **not**.
-    #[inline]
-    pub fn push_unchecked(&self, value: &Value) -> i32 {
-        unsafe { self.0.local_push(value).0 }
-    }
-
-    /// Gets a value from this [Stack] using a previously received [HostPtr].
-    ///
-    /// Note: The provided [HostPtr] can only be used to retrieve values from
-    /// the same [Stack] which created it. Trying to pass a [HostPtr] created by
-    /// another [Stack] instance will panic.
-    #[inline]
-    pub fn get(&self, ptr: HostPtr) -> Option<&Value> {
-        assert_eq!(ptr.stack.id, self.0.id);
-        unsafe { self.0.local_get(*ptr) }
-    }
-
-    /// Gets a [Value]] from this [Stack] by [i32] pointer.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe because there are no checks that the [i32] pointer
-    /// is:
-    /// 1. A valid index in the backing [Vec]. If the index is out of bounds then
-    /// an out-of-bounds panic will be thrown.
-    /// 2. That a raw pointer held in the backing [Vec] is indeed pointing to the
-    /// correct value.
-    #[inline]
-    pub unsafe fn get_unchecked(&self, ptr: i32) -> Option<&Value> {
-        debug!(
-            "[get_unchecked] calling into stack to retrieve value for ptr {}",
-            ptr
-        );
-        self.0.local_get(ptr)
-    }
-
-    /// Attempts to get a [Value] from this [Stack] by [i32] pointer. If an invalid
-    /// pointer is provided then [None] will be returned, otherwise **a** [Value]
-    /// will be returned.
-    ///
-    /// # Safety
-    ///
-    /// Please be aware that while this function is not marked as `unsafe`, there
-    /// are _no guarantees_ that you will get the [Value] you want here unless you
-    /// _know for a fact_ that the [Value] has not been dropped or moved.
-    #[inline]
-    pub fn try_get(&self, ptr: i32) -> Option<&Value> {
-        assert_eq!(ptr as u64, self.0.id);
-        unsafe { self.0.local_try_get(ptr) }
-    }
-
-    /// Drops the specified pointer.
-    #[inline]
-    pub fn drop(&self, ptr: HostPtr) {
-        self.0.local_drop(ptr)
-    }
-}
-
-impl std::fmt::Display for StackFrame<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unsafe {
-            writeln!(f, "\n>>> Stack dump")?;
-            writeln!(f, "----------------------------------------------")?;
-            writeln!(f, "id: {}", self.0.id)?;
-            writeln!(f, "locals count: {}", self.0.local_count())?;
-            writeln!(f, "locals index: {}", *self.0.current_local_idx.get() - 1)?;
-            writeln!(f, "locals: {:?}", *self.0.locals.get())?;
-            writeln!(f, "frame count: {}", self.0.get_frame_index())?;
-            writeln!(f, "frames: {:?}", *self.0.frames.get())?;
-            writeln!(f, "----------------------------------------------\n")?;
-        }
-
-        Ok(())
-    }
-}
-
-/// Defines functionality for receiving a [StackFrame] from another object.
-pub trait AsFrame {
-    fn as_frame(&self) -> StackFrame;
-}
-
-impl AsFrame for Stack {
-    #[inline]
-    fn as_frame(&self) -> StackFrame {
-        StackFrame(self)
-    }
-}
-
-impl AsFrame for StackFrame<'_> {
-    #[inline]
-    fn as_frame(&self) -> StackFrame {
-        StackFrame(self.0)
-    }
-}
+use crate::{ValType, ClarityWasmContext, HostPtr, AsValType, frames::{FrameContext, FrameResult}, StackFrame, AsFrame};
 
 /// [Stack] is the core of this library and provides all of the core functionality
 /// for managing locals and providing a context within host [wasmtime::Func]
@@ -238,13 +17,16 @@ impl AsFrame for StackFrame<'_> {
 /// internal mutability. It stores references to Clarity [Value]'s as raw pointers
 /// and thus expects **YOU** to ensure that the [Value] references provided to
 /// the [Stack] instance _are not moved during its use_.
+/// 
+/// In general this should not be an issue as [Value]s should not be mutated/moved
+/// during the execution of a Clarity contract - but you have been warned anyway.
 #[derive(Debug)]
 pub struct Stack {
-    id: u64,
-    current_local_idx: UnsafeCell<i32>,
+    pub(crate) id: u64,
+    pub(crate) current_local_idx: UnsafeCell<i32>,
     next_frame_idx: UnsafeCell<usize>,
-    locals: UnsafeCell<Vec<*const Value>>,
-    frames: UnsafeCell<Vec<FrameContext>>,
+    pub(crate) locals: UnsafeCell<Vec<*const Value>>,
+    pub(crate) frames: UnsafeCell<Vec<FrameContext>>,
     result_buffer: UnsafeCell<Vec<*const Value>>,
     owned_values: UnsafeCell<Vec<Value>>,
 }
@@ -406,7 +188,7 @@ impl Stack {
         //    "[new_frame] (pre-increment) next-frame-idx={}",
         //    &*self.next_frame_idx.get()
         //);
-        let (index, next_index) = self.increment_frame_index();
+        let (index, _) = self.increment_frame_index();
         //debug!(
         //    "[new_frame] (post-increment) index={}, next_index={}",
         //    index, next_index
@@ -437,7 +219,7 @@ impl Stack {
         //);
         // Decrement the frame index, receiving the dropped frame index (should match `index`)
         // and the index of the frame now at the top of the stack.
-        let (dropped_frame_index, current_index) = self.decrement_frame_index();
+        let (dropped_frame_index, _) = self.decrement_frame_index();
         //debug!(
         //    "[drop_frame] (pre-drop) {{ frame_index={}, dropped_frame_index={}, current_index={:?} }}",
         //    index, dropped_frame_index, current_index
@@ -607,7 +389,7 @@ impl Stack {
                 None
             } else {
                 //        debug!("[local_get] pointer is not null, attempting to retrieve value");
-                let value = &*raw_ptr;
+                //let value = &*raw_ptr;
                 //        debug!("[local_get] got value: {:?}", value);
                 Some(&*raw_ptr)
             }

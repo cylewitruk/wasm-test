@@ -1,5 +1,7 @@
 mod macros;
 mod stack;
+mod hostptr;
+mod frames;
 
 #[macro_use]
 pub extern crate log;
@@ -7,10 +9,40 @@ pub extern crate log;
 #[macro_use]
 pub extern crate paste;
 
-use clarity::vm::Value;
-pub use stack::{AsFrame, AsValType, Stack, StackFrame};
 use std::rc::Rc;
 use wasmtime::{AsContextMut, Caller, Func, Store};
+use clarity::vm::Value;
+
+pub use stack::Stack;
+pub use hostptr::HostPtr;
+pub use frames::{AsFrame, StackFrame};
+
+
+/// Value type indicator, indicating the type of Clarity [Value] a given
+/// [HostPtr] is pointing to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ValType {
+    Int128,
+    UInt128,
+}
+
+/// A simple trait to map a [Value] to a [ValType] with clean semantics.
+pub trait AsValType {
+    fn as_val_type(&self) -> ValType;
+}
+
+/// Implement [AsValType] for Clarity's [Value].
+impl AsValType for Value {
+    #[inline]
+    fn as_val_type(&self) -> ValType {
+        match self {
+            Value::Int(_) => ValType::Int128,
+            Value::UInt(_) => ValType::UInt128,
+            _ => todo!(),
+        }
+    }
+}
 
 pub trait HostFunction {
     fn signature() -> HostFunctionSignature
