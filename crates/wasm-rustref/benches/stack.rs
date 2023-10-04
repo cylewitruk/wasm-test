@@ -7,13 +7,14 @@ criterion_group! {
     name = stack_benches;
     config = Criterion::default().measurement_time(Duration::from_secs(5));
     targets =
-        local_push_checked,
-        local_push_unchecked,
-        push_1_local_from_frame,
-        push_2_locals_from_frame,
-        push_5_locals_from_frame,
-        push_5000_locals_from_frame,
-        get_1_local_from_frame,
+        //local_push_checked,
+        //local_push_unchecked,
+        //push_1_local_from_frame,
+        //push_2_locals_from_frame,
+        //push_5_locals_from_frame,
+        //push_5000_locals_from_frame,
+        //get_1_local_from_frame,
+        new_frame_and_drop
 }
 
 criterion_main!(stack_benches,);
@@ -148,6 +149,22 @@ pub fn get_1_local_from_frame(c: &mut Criterion) {
                     frame.get(ptr);
                     vec![]
                 });
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
+}
+
+pub fn new_frame_and_drop(c: &mut Criterion) {
+    c.bench_function("stack/frames/new frame & drop", move |b| {
+        let stack = Stack::new();
+        b.iter_batched(
+            || {
+                &stack
+            },
+            |stack| {
+                let (_, context) = stack._new_frame();
+                unsafe { stack._drop_frame(context.frame_index) };
             },
             criterion::BatchSize::SmallInput,
         );

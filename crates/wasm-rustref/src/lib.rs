@@ -141,7 +141,7 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
     ) {
         unsafe {
             // Create a new virtual frame.
-            let (frame, frame_index) = stack.new_frame();
+            let (frame, context) = stack.new_frame();
             // Call the provided function.
             let frame_result: Vec<Value> = func(frame, self);
             debug!("Frame result count: {}", &frame_result.len());
@@ -149,7 +149,7 @@ impl<'a> AsStoreExec<'a> for Store<ClarityWasmContext> {
             // Move the output values from the frame to the result buffer.
             stack.fill_result_buffer(frame_result);
             // Drop the frame.
-            stack.drop_frame(frame_index);
+            stack.drop_frame(context.frame_index);
         }
     }
 }
@@ -171,7 +171,7 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
     ) {
         unsafe {
             // Create a new virtual frame.
-            let (frame, frame_index) = stack.new_frame();
+            let (frame, context) = stack.new_frame();
             // Call the provided function.
             let frame_result: Vec<Value> = func(frame, self);
             debug!("Frame result count: {}", frame_result.len());
@@ -179,7 +179,7 @@ impl<'a> AsCallerExec<'a> for Caller<'a, ClarityWasmContext> {
             // Move the output values from the frame to the result buffer.
             stack.fill_result_buffer(frame_result);
             // Drop the frame.
-            stack.drop_frame(frame_index);
+            stack.drop_frame(context.frame_index);
         }
     }
 }

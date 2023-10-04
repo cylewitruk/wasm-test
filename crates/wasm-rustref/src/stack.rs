@@ -91,7 +91,7 @@ impl Stack {
     ) -> Store<ClarityWasmContext> {
         unsafe {
             // Create a new virtual frame.
-            let (frame, frame_index) = stack.new_frame();
+            let (frame, context) = stack.new_frame();
 
             // Call the provided function.
             let frame_result: Vec<Value> = func(&mut store, &frame);
@@ -100,7 +100,7 @@ impl Stack {
             stack.fill_result_buffer(frame_result);
 
             // Drop the frame.
-            stack.drop_frame(frame_index);
+            stack.drop_frame(context.frame_index);
         }
 
         store
@@ -114,7 +114,7 @@ impl Stack {
     ) -> FrameResult {
         unsafe {
             // Create a new virtual frame.
-            let (frame, frame_index) = self.new_frame();
+            let (frame, context) = self.new_frame();
 
             // Call the provided function.
             let frame_result: Vec<Value> = func(frame);
@@ -123,7 +123,7 @@ impl Stack {
             self.fill_result_buffer(frame_result);
 
             // Drop the frame.
-            self.drop_frame(frame_index);
+            self.drop_frame(context.frame_index);
         }
 
         FrameResult {}
@@ -138,7 +138,7 @@ impl Stack {
     ) -> FrameResult {
         unsafe {
             // Create a new virtual frame.
-            let (frame, frame_index) = self.new_frame();
+            let (frame, context) = self.new_frame();
 
             // Call the provided function.
             let frame_result: Vec<Value> = func(&mut store, &frame);
@@ -147,7 +147,7 @@ impl Stack {
             self.fill_result_buffer(frame_result);
 
             // Drop the frame.
-            self.drop_frame(frame_index);
+            self.drop_frame(context.frame_index);
         }
 
         FrameResult {}
@@ -187,9 +187,9 @@ impl Stack {
     /// fully backed by the [Stack] implementation and the "frame" keeps track of
     /// state via pointers and counters.
     #[inline]
-    pub(crate) unsafe fn new_frame(&self) -> (StackFrame, usize) {
+    pub(crate) fn new_frame(&self) -> (StackFrame, &FrameContext) {
         // Retrieve the index for a new frame and increment the frame index.
-        let (index, _) = self.increment_frame_index();
+        let (index, _) = unsafe { self.increment_frame_index() };
 
         // Create a new frame context, which stores a little bit of information
         // about the frame that we'll need later.
@@ -200,9 +200,11 @@ impl Stack {
         );
 
         // Get a mutable reference to our frames vec and push our new context.
-        (*self.frames.get()).push(context);
-
-        (self.as_frame(), index)
+        unsafe { (*self.frames.get()).push(context) };
+        // Get a reference to the context (because it was moved to Stack ownership above).
+        let context_ref = unsafe { &(*self.frames.get())[index] };
+        // Return our StackFrame and the reference to the FrameContext.
+        (self.as_frame(), context_ref)
     }
 
     /// Drops the frame at the specified index. This results in the current frame index
@@ -387,16 +389,27 @@ impl Stack {
     pub fn _local_push(&self, value: &Value) -> (i32, ValType) {
         self.local_push(value)
     }
+
+    #[inline]
+    pub fn _new_frame(&self) -> (StackFrame, &FrameContext) {
+        self.new_frame()
+    }
+
+    #[inline]
+    pub unsafe fn _drop_frame(&self, index: usize) {
+        self.drop_frame(index);
+    }
 }
 
 #[cfg(test)]
 #[allow(unused_variables)]
-mod test {
+mod tests {
     use super::Stack;
     use crate::stack::ValType;
     use clarity::vm::Value;
     use log::*;
 
+    /// Initialize logging if the `logging` feature is enabled.
     fn init_logging() {
         #[cfg(feature = "logging")]
         {
@@ -421,6 +434,17 @@ mod test {
         pub fn get_locals_vec_len(&self) -> usize {
             unsafe { (*self.locals.get()).len() }
         }
+    }
+
+    #[test]
+    fn new_frame_and_drop() {
+        init_logging();
+        let stack = Stack::new();
+
+        let (frame, context) = stack.new_frame();
+        assert_eq!(1, stack.get_next_frame_idx());
+
+        unsafe { stack.drop_frame(context.frame_index) };
     }
 
     #[test]
