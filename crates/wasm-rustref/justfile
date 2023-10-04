@@ -1,0 +1,15 @@
+test:
+    cargo test --features "env_logger"
+
+build:
+    cargo build
+
+# runs the specified bench
+bench TARGET:
+    RUST_BACKTRACE=1 cargo bench --bench "{{TARGET}}" --features "bench"
+
+install:
+    cargo install -f just
+
+bench-report TARGET:
+    RUST_BACKTRACE=1 cargo criterion --bench "{{TARGET}}" --features "bench" --message-format=json | criterion-table > BENCHMARKS.md

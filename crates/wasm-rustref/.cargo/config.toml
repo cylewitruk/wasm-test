@@ -1,0 +1,14 @@
+[build]
+rustflags = ["-C", "target-cpu=native"]
+
+[profile.bench]
+opt-level = 3
+incremental = true
+lto = "thin"
+debug = false
+codegen-units = 1
+debug_assertions = false
+
+[profile.release.build-override]
+incremental = true
+codegen-units = 1

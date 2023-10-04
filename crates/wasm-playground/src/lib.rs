@@ -11,6 +11,7 @@
 pub mod compiler;
 #[macro_use]
 pub mod runtime;
+#[allow(unused_imports)]
 #[macro_use]
 pub extern crate paste;
 pub extern crate wasmtime;

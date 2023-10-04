@@ -2476,10 +2476,14 @@ name = "wasm-rustref"
 version = "0.1.0"
 dependencies = [
  "clarity-vm",
+ "criterion",
  "env_logger",
  "log",
  "paste",
  "rand 0.8.5",
+ "rusqlite",
+ "sha2 0.10.7",
+ "test-case",
  "walrus",
  "wasmtime",
 ]

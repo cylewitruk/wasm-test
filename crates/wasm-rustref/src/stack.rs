@@ -207,6 +207,7 @@ impl std::fmt::Display for StackFrame<'_> {
     }
 }
 
+/// Defines functionality for receiving a [StackFrame] from another object.
 pub trait AsFrame {
     fn as_frame(&self) -> StackFrame;
 }
@@ -225,6 +226,18 @@ impl AsFrame for StackFrame<'_> {
     }
 }
 
+/// [Stack] is the core of this library and provides all of the core functionality
+/// for managing locals and providing a context within host [wasmtime::Func]
+/// execution for working with locals.  
+/// 
+/// Please _read the **Safety** section_ prior to using!!
+/// 
+/// # Safety
+/// 
+/// The implementation of [Stack] uses [UnsafeCell] and raw pointers for fast
+/// internal mutability. It stores references to Clarity [Value]'s as raw pointers
+/// and thus expects **YOU** to ensure that the [Value] references provided to
+/// the [Stack] instance _are not moved during its use_.
 #[derive(Debug)]
 pub struct Stack {
     id: u64,
@@ -236,6 +249,7 @@ pub struct Stack {
     owned_values: UnsafeCell<Vec<Value>>,
 }
 
+/// Implementation of [fmt::Display] for [Stack].
 impl fmt::Display for Stack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unsafe {
@@ -254,6 +268,7 @@ impl fmt::Display for Stack {
     }
 }
 
+/// Implementation of [Default] for [Stack].
 impl Default for Stack {
     fn default() -> Self {
         Self {
@@ -268,6 +283,7 @@ impl Default for Stack {
     }
 }
 
+/// Implementation of [Stack].
 impl Stack {
     #[inline]
     pub fn new() -> Self {
